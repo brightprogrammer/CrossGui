@@ -1,0 +1,3 @@
+file(GLOB_RECURSE CROSSGUI_UTIL_SRCS ${CMAKE_CURRENT_SOURCE_DIR} *.c)
+
+add_library(crossgui_utils ${CROSSGUI_UTIL_SRCS})
