@@ -5,7 +5,10 @@
 ## Intro 
 
 CrossGui is my solution for cross platform GUI application programming. I don't like current solutions,
-and I wanna do something about it. CrossGui aims :
+and I wanna do something about it. While current immediate mode solutions are quite appealing, I'm 
+not really a big fan of them. CrossGui will be a Retained Mode GUI (RmGUI).
+
+CrossGui aims :
 - to be completely free for life. 
 - to be fast and simple to use
 - to provide custom themeing support
