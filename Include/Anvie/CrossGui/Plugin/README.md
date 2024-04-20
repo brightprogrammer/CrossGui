@@ -24,7 +24,7 @@ struct {
 static Bool init() {
     /* initialize graphics state to be used by plugin internally */
     state.instance = create_instance();
-    state.gpus = find_gpus(&state.gpu_count);
+    state.gpus     = find_gpus(&state.gpu_count);
 
     .
     .
@@ -43,9 +43,9 @@ static Bool draw_2d(Vertex2D *vertices, Size vertex_count) {
 
 static Bool draw_indexed_2d(
     Vertex2D *vertices,
-    Size vertex_count,
-    Uint32 *indices,
-    Size index_count
+    Size      vertex_count,
+    Uint32   *indices,
+    Size      index_count
 ) {
     /* drawing code */
 }
@@ -57,8 +57,7 @@ static Bool draw_indexed_2d(
  * with this specific plugin instance.
  * */
 static XuiGraphicsPlugin vulkan_graphics = {
-    .init = init,
-    .draw_2d = draw_2d,
+    .draw_2d         = draw_2d,
     .draw_indexed_2d = draw_indexed_2d,
     
     .
@@ -73,13 +72,13 @@ static XuiGraphicsPlugin vulkan_graphics = {
  * This name will be used to find the plugin.
  * */
 XuiPlugin xui_plugin = {
-    .type = XUI_PLUGIN_TYPE_GRAPHICS,
-    .name = "Xui Vulkan Graphics",
-    .version = {.date = xy, .month = xy, .year = xyzt},
-    .license = "Copyright (c) 2024 Siddharth Mishra, Anvie Labs. BSD 3-Clause License",
+    .type        = XUI_PLUGIN_TYPE_GRAPHICS,
+    .name        = "Xui Vulkan Graphics",
+    .version     = {.date = xy, .month = xy, .year = xyzt},
+    .license     = "Copyright (c) 2024 Siddharth Mishra, Anvie Labs. BSD 3-Clause License",
     .plugin_data = &vulkan_graphics,
-    .init = init,
-    .deinit = deinit
+    .init        = init,
+    .deinit      = deinit
 };
 ```
 
