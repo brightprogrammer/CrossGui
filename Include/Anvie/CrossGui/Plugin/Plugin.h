@@ -41,8 +41,8 @@
  * */
 typedef void *XuiPluginGenericData;
 
-typedef Bool (*XuiPluginInit) (XuiPluginGenericData plugin_data);
-typedef Bool (*XuiPluginDeinit) (XuiPluginGenericData plugin_data);
+typedef Bool (*XuiPluginInit)();
+typedef Bool (*XuiPluginDeinit)();
 
 typedef struct XuiPluginVersion {
     Uint16 year;
@@ -56,23 +56,31 @@ typedef enum XuiPluginType {
     XUI_PLUGIN_TYPE_MAX
 } XuiPluginType;
 
-typedef enum XuiPluginPlatformMask {
+typedef Uint8 XuiPluginPlatform;
+
+typedef enum XuiPluginPlatformMask : XuiPluginPlatform {
     XUI_PLUGIN_PLATFORM_MASK_NONE    = 0, /**< @b No platform supported. (Must not be the case) */
     XUI_PLUGIN_PLATFORM_MASK_LINUX   = (1 << 0), /**< @b Plugin can work on Linux. */
     XUI_PLUGIN_PLATFORM_MASK_WINDOWS = (1 << 1), /**< @b Plugin can work on windows. */
     XUI_PLUGIN_PLATFORM_MASK_MAC     = (1 << 2), /**< @b Plugin can work on MacOS */
     XUI_PLUGIN_PLATFORM_MASK_ANDROID = (1 << 3), /**< @b Plugin can work on android */
-    XUI_PLUGIN_PLATFORM_MASK_ALL     = -1        /**< @b The plugin works on all platforms */
+    XUI_PLUGIN_PLATFORM_MASK_ALL =
+        (XuiPluginPlatform)-1                    /**< @b The plugin works on all platforms */
 } XuiPluginPlatfomMask;
 
 typedef struct XuiPlugin {
-    XuiPluginType        type;        /**< @b Type of plugin */
-    CString              name;        /**< @b Name of plugin. */
-    XuiPluginVersion     version;     /**< @b Plugin version. */
-    CString              license;     /**< @b License information about plugin.*/
-    XuiPluginGenericData plugin_data; /**< @b Data of plugin dependent on plugin type. */
-    XuiPluginInit        init;        /**< @b Initialize plugin. */
-    XuiPluginDeinit      deinit;      /**< @b De-initialize plugin. */
+    XuiPluginType     type;                /**< @b Type of plugin */
+    CString           name;                /**< @b Name of plugin. */
+    XuiPluginVersion  version;             /**< @b Plugin version. */
+    CString           license;             /**< @b License information about plugin.*/
+    XuiPluginPlatform supported_platforms; /**< @b Bitmask of supported platforms by the plugin */
+    XuiPluginGenericData plugin_data;      /**< @b Data of plugin dependent on plugin type. */
+    XuiPluginInit        init;             /**< @b Initialize plugin. */
+    XuiPluginDeinit      deinit;           /**< @b De-initialize plugin. */
+    void                *plugin_handle;    /**< @b Loaded plugin library handle. */
 } XuiPlugin;
 
-#endif                                // ANVIE_CROSSGUI_PLUGIN_PLUGIN_H
+XuiPlugin *xui_plugin_load (CString plugin_name);
+void       xui_plugin_unload (XuiPlugin *plugin);
+
+#endif // ANVIE_CROSSGUI_PLUGIN_PLUGIN_H

@@ -35,30 +35,47 @@
 
 #include <Anvie/Types.h>
 
-typedef struct Graphics Graphics;
+/* crosswindow */
+#include <Anvie/CrossWindow/Window.h>
 
-typedef struct Position2D {
-    Float32 x;
-    Float32 y;
-} Position2D;
+/* crossgui */
+#include <Anvie/CrossGui/Graphics.h>
 
-typedef struct Color {
-    Float32 r;
-    Float32 g;
-    Float32 b;
-    Float32 a;
-} Color;
+/**
+ * @b Opaque structure, defined by the plugin.
+ *
+ * Rendered image presentation method is different in different rendering APIs.
+ * To abstract this away, I've decided to use a GraphicsContext, that's plugin
+ * dependent. This needs to be passed to plugin whenever we need to render something.
+ *
+ * One can think of GraphicsContext having one-to-one correspondence with window.
+ * */
+typedef struct XuiGraphicsContext XuiGraphicsContext;
 
-typedef struct Vertex2D {
-    Position2D position;
-    Color      color;
-} Vertex2D;
+/**
+ * @b Create a graphics context for given window.
+ *
+ * @param window 
+ *
+ * @return @c XuiGraphicsContext opaque object pointer on success.
+ * @return @c Null otherwise.
+ * */
+typedef XuiGraphicsContext *(*XuiGraphicsContextCreate) (XwWindow *window);
+
+/**
+ * @b Destroy the given graphics context.
+ *
+ * @param gctx GraphicsContext object to be destroyed.
+ * */
+typedef void (*XuiGraphicsContextDestroy) (XuiGraphicsContext *gctx);
 
 /**
  * @b Plugin must render given 2D shape.
  *
  * This is a per-vertex draw call.  
  *
+ * @param graphics_context The @c XuiGraphicsContext object created for @x xwin.
+ * @param xwin @c XwWindow object used to create @c graphics context.
  * @param vertices Array of 2D vertices.
  * @param vertex_count Number of vertices.
  *
@@ -67,7 +84,12 @@ typedef struct Vertex2D {
  *
  * @sa XuiGraphicsDrawIndexed2D
  * */
-typedef Bool (*XuiGraphicsDraw2D) (Vertex2D *vertices, Size vertex_count);
+typedef Bool (*XuiGraphicsDraw2D) (
+    XuiGraphicsContext *graphics_context,
+    XwWindow           *xwin,
+    Vertex2D           *vertices,
+    Size                vertex_count
+);
 
 /**
  * @b Plugin must render given 2D shape, along with indices data.
@@ -75,8 +97,12 @@ typedef Bool (*XuiGraphicsDraw2D) (Vertex2D *vertices, Size vertex_count);
  * This is an indexed, per-vertex call. Indices define the actual shape.
  * Refer to indexed drawing method for more detail.
  *
+ * @param graphics_context The @c XuiGraphicsContext object created for @x xwin.
+ * @param xwin @c XwWindow object used to create @c graphics context.
  * @param vertices Array of 2D vertices.
  * @param vertex_count Number of vertices.
+ * @param indices Array of 2D vertices.
+ * @param index_count Number of vertices.
  *
  * @return True if draw was successful.
  * @return False otherwise.
@@ -84,10 +110,12 @@ typedef Bool (*XuiGraphicsDraw2D) (Vertex2D *vertices, Size vertex_count);
  * @sa XuiGraphicsDrawIndexed2D
  * */
 typedef Bool (*XuiGraphicsDrawIndexed2D) (
-    Vertex2D *vertices,
-    Size      vertex_count,
-    Uint32    indices,
-    Size      index_count
+    XuiGraphicsContext *graphics_context,
+    XwWindow           *xwin,
+    Vertex2D           *vertices,
+    Size                vertex_count,
+    Uint32              indices,
+    Size                index_count
 );
 
 #endif // ANVIE_CROSSGUI_PLUGIN_GRAPHICS_API_H

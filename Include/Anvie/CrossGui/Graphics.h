@@ -1,6 +1,6 @@
 /**
  * @file Graphics.h
- * @date Sat, 20th April 2024
+ * @date Sat, 20st January 2024
  * @author Siddharth Mishra (admin@brightprogrammer.in)
  * @copyright Copyright 2024 Siddharth Mishra
  * @copyright Copyright 2024 Anvie Labs
@@ -30,19 +30,26 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * */
 
-#ifndef ANVIE_CROSSGUI_PLUGIN_GRAPHICS_GRAPHICS_H
-#define ANVIE_CROSSGUI_PLUGIN_GRAPHICS_GRAPHICS_H
+#ifndef ANVIE_CROSSGUI_GRAPHICS_H
+#define ANVIE_CROSSGUI_GRAPHICS_H
 
-#include <Anvie/CrossGui/Plugin/Graphics/API.h>
+#include <Anvie/Types.h>
 
-/**
- * @b Defines set of callbacks to be used to interact with the plugin.
- * */
-typedef struct XuiGraphicsPlugin {
-    XuiGraphicsContextCreate context_create;
-    XuiGraphicsContextDestroy context_destroy;
-    XuiGraphicsDraw2D        draw_2d;
-    XuiGraphicsDrawIndexed2D draw_indexed_2d;
-} XuiGraphicsPlugin;
+typedef struct Position2D {
+    Float32 x;
+    Float32 y;
+} Position2D;
 
-#endif // ANVIE_CROSSGUI_PLUGIN_GRAPHICS_GRAPHICS_H
+typedef struct Color {
+    Float32 r;
+    Float32 g;
+    Float32 b;
+    Float32 a;
+} Color;
+
+typedef struct Vertex2D {
+    Position2D position;
+    Color      color;
+} Vertex2D;
+
+#endif // ANVIE_CROSSGUI_GRAPHICS_H

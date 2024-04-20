@@ -1,0 +1,6 @@
+[20th April 2024] : https://github.com/brightprogrammer/CrossGui/commit/78673627867ba6b305c2875141d365ee1ec95841
+Working on plugin system. Basic plugin architecture added but testing remains. Will work on creating
+"Vulkan Graphics Plugin" first.
+
+[19th April 2024] : https://github.com/brightprogrammer/CrossGui/commit/b12be85f7d9062d01c082a35fe6ec08a2d114208
+Rectangle rendered successully.
