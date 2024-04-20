@@ -14,9 +14,14 @@
 #include <string.h>
 #include <vulkan/vulkan_core.h>
 
+// NOTE : Create a single unifotm data to store UI mesh data.
+// This will include things like mesh data of button, rounded or plain, or circular, etc...
+// This uniform is a global uniform and will always be bound. At top of the hierarchy of
+// shader resource bindings.
+// Use GpuUiData for passing all these data
 typedef struct GpuUiData {
-    Float32 button_width;
-    Float32 button_height;
+    Float32 button_width;  /**< @b Scale width of all buttons by this factor */
+    Float32 button_height; /**< @b Scale height of all buttons by this factor */
 } GpuUiData;
 
 /**************************************************************************************************/
@@ -44,15 +49,6 @@ typedef struct DeviceQueue {
 } DeviceQueue;
 
 /**
- * @c Device buffer data.
- * */
-typedef struct DeviceBuffer {
-    Size           size;
-    VkBuffer       buffer;
-    VkDeviceMemory memory;
-} DeviceBuffer;
-
-/**
  * @b Wrapper around Vulkan device.
  * */
 typedef struct Device {
@@ -69,15 +65,23 @@ Device *device_init (Device *device, Vulkan *vk);
 Device *device_deinit (Device *device);
 void    device_destroy (Device *device);
 
-DeviceBuffer *device_create_buffer (
+/**
+ * @c Device buffer data.
+ * */
+typedef struct DeviceBuffer {
+    Size           size;
+    VkBuffer       buffer;
+    VkDeviceMemory memory;
+} DeviceBuffer;
+
+DeviceBuffer *device_buffer_create (
     Device            *device,
     VkBufferUsageFlags usage,
     Size               size,
     Uint32             queue_family_inddex
 );
-void device_destroy_buffer (Device *device, DeviceBuffer *device_buffer);
-DeviceBuffer *
-    device_upload_data (Device *device, DeviceBuffer *device_buffer, void *data, Size size);
+void          device_buffer_destroy (DeviceBuffer *dbuf, Device *device);
+DeviceBuffer *device_buffer_memcpy (DeviceBuffer *dbuf, Device *device, void *data, Size size);
 
 /**************************************************************************************************/
 /******************************************** SURFACE *********************************************/
@@ -141,23 +145,6 @@ void shader_pipeline_destroy (ShaderPipeline *pipeline, Device *device);
 /********************************************** Math **********************************************/
 /**************************************************************************************************/
 
-typedef struct Position2D {
-    Float32 x;
-    Float32 y;
-} Position2D;
-
-typedef struct Color {
-    Float32 r;
-    Float32 g;
-    Float32 b;
-    Float32 a;
-} Color;
-
-typedef struct Vertex2D {
-    Position2D position;
-    Color      color;
-} Vertex2D;
-
 static const Vertex2D triangle_vertices[] = {
     {{-1.f, -1.f}, {.6f, .8f, 1.f, 1.f}},
     {  {1.f, 1.f}, {.6f, .8f, 1.f, 1.f}},
@@ -186,7 +173,7 @@ int main() {
     Surface *surface = surface_create (vk, device, win);
     GOTO_HANDLER_IF (!surface, SURFACE_FAILED, "Failed to create Surface\n");
 
-    DeviceBuffer *vbo = device_create_buffer (
+    DeviceBuffer *vbo = device_buffer_create (
         device,
         VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
         sizeof (triangle_vertices),
@@ -194,7 +181,7 @@ int main() {
     );
     GOTO_HANDLER_IF (!vbo, DEVICE_BUFFER_FAILED, "Failed to create DeviceBuffer\n");
 
-    device_upload_data (device, vbo, (void *)triangle_vertices, sizeof (triangle_vertices));
+    device_buffer_memcpy (vbo, device, (void *)triangle_vertices, sizeof (triangle_vertices));
 
     ShaderResourceBinding *ui_srb = shader_resource_binding_create_ui_binding (device);
     GOTO_HANDLER_IF (!ui_srb, UI_SRB_FAILED, "Failed to create UI SRB\n");
@@ -203,7 +190,7 @@ int main() {
     GOTO_HANDLER_IF (!ui_pipeline, UI_PIPELINE_FAILED, "Failed to create UI Pipeline");
 
     GpuUiData ui_data = {.button_width = 0.25f, .button_height = 0.10f};
-    device_upload_data (device, ui_srb->uniform_buffer, &ui_data, sizeof (GpuUiData));
+    device_buffer_memcpy (ui_srb->uniform_buffer, device, &ui_data, sizeof (GpuUiData));
 
     /* event handlign looop */
     Bool    is_running = True;
@@ -380,7 +367,7 @@ int main() {
 
     shader_pipeline_destroy (ui_pipeline, device);
     shader_resource_binding_destroy (ui_srb, device);
-    device_destroy_buffer (device, vbo);
+    device_buffer_destroy (vbo, device);
     surface_destroy (surface, device, vk);
     device_destroy (device);
     vk_destroy (vk);
@@ -393,7 +380,7 @@ DRAW_ERROR:
 UI_PIPELINE_FAILED:
     shader_resource_binding_destroy (ui_srb, device);
 UI_SRB_FAILED:
-    device_destroy_buffer (device, vbo);
+    device_buffer_destroy (vbo, device);
 DEVICE_BUFFER_FAILED:
     surface_destroy (surface, device, vk);
 SURFACE_FAILED:
@@ -648,7 +635,7 @@ void device_destroy (Device *device) {
  * @return @c DeviceBuffer on success.
  * @return @c 0 otherwise.
  * */
-DeviceBuffer *device_create_buffer (
+DeviceBuffer *device_buffer_create (
     Device            *device,
     VkBufferUsageFlags usage,
     Size               size,
@@ -657,8 +644,8 @@ DeviceBuffer *device_create_buffer (
     RETURN_VALUE_IF (!device || !size, Null, ERR_INVALID_ARGUMENTS);
 
     /* create space for device buffer */
-    DeviceBuffer *device_buffer = NEW (DeviceBuffer);
-    RETURN_VALUE_IF (!device_buffer, Null, ERR_OUT_OF_MEMORY);
+    DeviceBuffer *dbuf = NEW (DeviceBuffer);
+    RETURN_VALUE_IF (!dbuf, Null, ERR_OUT_OF_MEMORY);
 
     /* create vertex buffer */
     VkBuffer vbuffer = VK_NULL_HANDLE;
@@ -727,15 +714,15 @@ DeviceBuffer *device_create_buffer (
     Size offset = 0;
     vkBindBufferMemory (device->device, vbuffer, vmemory, offset);
 
-    *device_buffer = (DeviceBuffer) {.size = size, .buffer = vbuffer, .memory = vmemory};
+    *dbuf = (DeviceBuffer) {.size = size, .buffer = vbuffer, .memory = vmemory};
 
-    return device_buffer;
+    return dbuf;
 
 MEMORY_TYPE_NOT_FOUND:
 MEMORY_ALLOC_FAILED:
     vkDestroyBuffer (device->device, vbuffer, Null);
 BUFFER_FAILED:
-    FREE (device_buffer);
+    FREE (dbuf);
     return Null;
 }
 
@@ -745,18 +732,18 @@ BUFFER_FAILED:
  * @param device 
  * @param device_buffer
  * */
-void device_destroy_buffer (Device *device, DeviceBuffer *device_buffer) {
-    RETURN_IF (!device || !device_buffer, ERR_INVALID_ARGUMENTS);
+void device_buffer_destroy (DeviceBuffer *dbuf, Device *device) {
+    RETURN_IF (!device || !dbuf, ERR_INVALID_ARGUMENTS);
 
     vkDeviceWaitIdle (device->device);
 
-    vkFreeMemory (device->device, device_buffer->memory, Null);
-    device_buffer->memory = VK_NULL_HANDLE;
+    vkFreeMemory (device->device, dbuf->memory, Null);
+    dbuf->memory = VK_NULL_HANDLE;
 
-    vkDestroyBuffer (device->device, device_buffer->buffer, Null);
-    device_buffer->buffer = VK_NULL_HANDLE;
+    vkDestroyBuffer (device->device, dbuf->buffer, Null);
+    dbuf->buffer = VK_NULL_HANDLE;
 
-    FREE (device_buffer);
+    FREE (dbuf);
 }
 
 /**
@@ -770,16 +757,15 @@ void device_destroy_buffer (Device *device, DeviceBuffer *device_buffer) {
  * @return @c bo on success.
  * @return @c {0, 0} otherwise
  * */
-DeviceBuffer *
-    device_upload_data (Device *device, DeviceBuffer *device_buffer, void *data, Size size) {
-    RETURN_VALUE_IF (!device_buffer || !device || !data || !size, Null, ERR_INVALID_ARGUMENTS);
+DeviceBuffer *device_buffer_memcpy (DeviceBuffer *dbuf, Device *device, void *data, Size size) {
+    RETURN_VALUE_IF (!dbuf || !device || !data || !size, Null, ERR_INVALID_ARGUMENTS);
 
     void *mapped_data = Null;
-    vkMapMemory (device->device, device_buffer->memory, 0, size, 0, &mapped_data);
+    vkMapMemory (device->device, dbuf->memory, 0, size, 0, &mapped_data);
     memcpy (mapped_data, data, size);
-    vkUnmapMemory (device->device, device_buffer->memory);
+    vkUnmapMemory (device->device, dbuf->memory);
 
-    return device_buffer;
+    return dbuf;
 }
 
 /**************************************************************************************************/
@@ -875,7 +861,7 @@ ShaderResourceBinding *shader_resource_binding_create_ui_binding (Device *device
 
     /* create uniform buffer to send GPU data */
     {
-        srb->uniform_buffer = device_create_buffer (
+        srb->uniform_buffer = device_buffer_create (
             device,
             VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
             sizeof (GpuUiData),
@@ -938,7 +924,7 @@ void shader_resource_binding_destroy (ShaderResourceBinding *srb, Device *device
     vkDeviceWaitIdle (device->device);
 
     if (srb->uniform_buffer) {
-        device_destroy_buffer (device, srb->uniform_buffer);
+        device_buffer_destroy (srb->uniform_buffer, device);
         srb->uniform_buffer = Null;
     }
 
