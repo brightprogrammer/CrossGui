@@ -12,41 +12,6 @@
 /* for plugin loading */
 #include <dlfcn.h>
 
-XuiPlugin *xui_plugin_load (CString plugin_name) {
-    RETURN_VALUE_IF (!plugin_name, Null, ERR_INVALID_ARGUMENTS);
-
-    void *plugin_handle = dlopen (plugin_name, RTLD_NOW);
-    RETURN_VALUE_IF (!plugin_handle, Null, "Failed to open plugin %s\n", plugin_name);
-
-    XuiPlugin *plugin = (XuiPlugin *)dlsym (plugin_handle, "xui_plugin");
-    GOTO_HANDLER_IF (
-        !plugin,
-        PLUGIN_NOT_FOUND,
-        "Failed to find plugin info \"xui_plugin\". Did you define it publicly in the plugin?\n"
-    );
-
-    plugin->plugin_handle = plugin_handle;
-
-    PRINT_ERR (
-        "Loaded plugin \"%s\" Version %u.%u.%u\n",
-        plugin->name,
-        plugin->version.date,
-        plugin->version.month,
-        plugin->version.year
-    );
-
-    return plugin;
-PLUGIN_NOT_FOUND:
-    dlclose (plugin_handle);
-    return Null;
-}
-
-void xui_plugin_unload (XuiPlugin *plugin) {
-    RETURN_IF (!plugin, ERR_INVALID_ARGUMENTS);
-
-    dlclose (plugin->plugin_handle);
-}
-
 int main (Int32 argc, CString *argv) {
     RETURN_VALUE_IF (argc < 2, EXIT_FAILURE, "%s <plugin path>\n", argv[0]);
 

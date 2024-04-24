@@ -5,4 +5,4 @@ add_subdirectory(Plugin)
 # target_link_libraries(main crossgui_utils ${CrossWindow_LIBRARIES} ${Vulkan_LIBRARIES} m)
 
 add_executable(plugintest PluginTest.c) 
-target_link_libraries(plugintest dl crossgui_utils ${CrossWindow_LIBRARIES} ${Vulkan_LIBRARIES} m)
+target_link_libraries(plugintest xui_plugin xui_utils ${CrossWindow_LIBRARIES} ${Vulkan_LIBRARIES} m)
