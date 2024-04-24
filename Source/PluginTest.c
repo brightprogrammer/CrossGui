@@ -28,9 +28,28 @@ int main (Int32 argc, CString *argv) {
     XwEvent e;
     Bool    is_running = True;
     while (is_running) {
+        Bool resized = False;
         while (xw_event_poll (&e)) {
-            is_running = e.type != XW_EVENT_TYPE_CLOSE_WINDOW;
+            switch (e.type) {
+                case XW_EVENT_TYPE_CLOSE_WINDOW : {
+                    is_running = False;
+                    break;
+                }
+                case XW_EVENT_TYPE_RESIZE : {
+                    resized = True;
+                    break;
+                }
+                default :
+                    break;
+            }
         }
+
+        if (resized) {
+            gplug->context_resize (gctx, xwin);
+            PRINT_ERR ("Window resized!\n");
+            fflush (stderr);
+        }
+
         gplug->draw_2d (gctx, xwin, (Vertex2D *)1, 1);
     }
 
@@ -40,6 +59,13 @@ int main (Int32 argc, CString *argv) {
      * It is possible to keep SRB and Pipeline as opaque objects, as pipeline is just a 
      * bunch of shaders executed in a particular order, we can emulate it in any graphics API.
      * SRB is also possible in opaque manner.
+     *
+     * NOTE: Create the pipelines statically inside each plugin.
+     * We'll need some kind of agreement between the XuiGraphics API and the plugins.
+     * For now, just continue with the single pipeline. We don't even need to specify which
+     * pipeline the graphics plugin must use for rendering.
+     *
+     * Same goes for renderpasses. Create them statically and later on we'll refactor!
      * */
 
     gplug->context_destroy (gctx);

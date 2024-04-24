@@ -7,5 +7,5 @@ else()
     message(FATAL_ERROR "Platform not detected")
 endif()
 
-add_library(xui_plugin Plugin.c)
+add_library(xui_plugin SHARED Plugin.c)
 target_link_libraries(xui_plugin ${LOADER_API_LIBS})

@@ -25,8 +25,14 @@
 XuiPlugin *xui_plugin_load (CString plugin_name) {
     RETURN_VALUE_IF (!plugin_name, Null, ERR_INVALID_ARGUMENTS);
 
-    void *plugin_handle = dlopen (plugin_name, RTLD_NOW);
-    RETURN_VALUE_IF (!plugin_handle, Null, "Failed to open plugin %s\n", plugin_name);
+    void *plugin_handle = dlopen (plugin_name, RTLD_LAZY);
+    RETURN_VALUE_IF (
+        !plugin_handle,
+        Null,
+        "Failed to open plugin %s : %s\n",
+        plugin_name,
+        dlerror() 
+    );
 
     XuiPlugin *plugin = (XuiPlugin *)dlsym (plugin_handle, "xui_plugin");
     GOTO_HANDLER_IF (

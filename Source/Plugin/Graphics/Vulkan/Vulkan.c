@@ -11,20 +11,14 @@
 /* local includes */
 #include "Anvie/Common.h"
 #include "Device.h"
+#include "GraphicsContext.h"
 #include "Surface.h"
 #include "Vulkan.h"
 
-static Vulkan vk = {0};
+Vulkan vk = {0};
 
-typedef struct XuiGraphicsContext {
-    Device  device;
-    Surface surface;
-} XuiGraphicsContext;
-
-static Bool                init();
-static Bool                deinit();
-static XuiGraphicsContext *graphics_context_create (XwWindow *xwin);
-static void                graphics_context_destroy (XuiGraphicsContext *gctx);
+static Bool init();
+static Bool deinit();
 static Bool
     draw_2d (XuiGraphicsContext *gctx, XwWindow *xwin, Vertex2D *vertices, Size vertex_count);
 
@@ -142,35 +136,6 @@ static Bool deinit() {
     return True;
 }
 
-static XuiGraphicsContext *graphics_context_create (XwWindow *xwin) {
-    RETURN_VALUE_IF (!xwin, Null, ERR_INVALID_ARGUMENTS);
-
-    XuiGraphicsContext *gctx = NEW (XuiGraphicsContext);
-    RETURN_VALUE_IF (!gctx, Null, ERR_OUT_OF_MEMORY);
-
-    GOTO_HANDLER_IF (
-        !device_init (&gctx->device, &vk) ||
-            !surface_init (&gctx->surface, &gctx->device, &vk, xwin),
-        GCTX_FAILED,
-        "Failed to create device context\n"
-    );
-
-    return gctx;
-
-GCTX_FAILED:
-    graphics_context_destroy (gctx);
-    return Null;
-}
-
-static void graphics_context_destroy (XuiGraphicsContext *gctx) {
-    RETURN_IF (!gctx, ERR_INVALID_ARGUMENTS);
-
-    surface_deinit (&gctx->surface, &gctx->device, &vk);
-    device_deinit (&gctx->device);
-
-    FREE (gctx);
-}
-
 static Bool
     draw_2d (XuiGraphicsContext *gctx, XwWindow *xwin, Vertex2D *vertices, Size vertex_count) {
     RETURN_VALUE_IF (!gctx || !xwin || !vertices || !vertex_count, False, ERR_INVALID_ARGUMENTS);
@@ -198,7 +163,6 @@ static Bool
         &next_image_index
     );
 
-    /* TODO: handle window resize here! */
     if (res == VK_SUBOPTIMAL_KHR || res == VK_ERROR_OUT_OF_DATE_KHR) {
         RETURN_VALUE_IF (
             !surface_recreate_swapchain (&gctx->surface, &gctx->device, xwin),
@@ -323,10 +287,15 @@ static Bool
     return True;
 }
 
+
 /* Describe callbacks in graphics plugin data */
 static XuiGraphicsPlugin vulkan_graphics_plugin_data = {
+    /* graphics context related methods */
     .context_create  = graphics_context_create,
     .context_destroy = graphics_context_destroy,
+    .context_resize  = graphics_context_resize,
+
+    /* drawing methods */
     .draw_2d         = draw_2d,
     .draw_indexed_2d = Null
 };

@@ -70,6 +70,21 @@ typedef XuiGraphicsContext *(*XuiGraphicsContextCreate) (XwWindow *window);
 typedef void (*XuiGraphicsContextDestroy) (XuiGraphicsContext *gctx);
 
 /**
+ * @b Resize the graphics context.
+ *
+ * Some plugins need to be informed about when window is resized.
+ * This call will ask the plugins to process a resize event from the given
+ * graphics context associated with given xwin.
+ *
+ * @param graphics_context Graphics context to be resized.
+ * @param xwin Window that was resized.
+ *
+ * @return @c True on success.
+ * @return @c False otherwise.
+ * */
+typedef Bool (*XuiGraphicsContextResize) (XuiGraphicsContext *graphics_context, XwWindow *xwin);
+
+/**
  * @b Plugin must render given 2D shape.
  *
  * This is a per-vertex draw call.  

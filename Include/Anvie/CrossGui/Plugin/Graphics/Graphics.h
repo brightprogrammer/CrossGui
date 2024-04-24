@@ -39,10 +39,14 @@
  * @b Defines set of callbacks to be used to interact with the plugin.
  * */
 typedef struct XuiGraphicsPlugin {
-    XuiGraphicsContextCreate context_create;
+    /* graphics context methods */
+    XuiGraphicsContextCreate  context_create;
     XuiGraphicsContextDestroy context_destroy;
-    XuiGraphicsDraw2D        draw_2d;
-    XuiGraphicsDrawIndexed2D draw_indexed_2d;
+    XuiGraphicsContextResize  context_resize;
+    
+    /* drawing methods */
+    XuiGraphicsDraw2D         draw_2d;
+    XuiGraphicsDrawIndexed2D  draw_indexed_2d;
 } XuiGraphicsPlugin;
 
 #endif // ANVIE_CROSSGUI_PLUGIN_GRAPHICS_GRAPHICS_H
