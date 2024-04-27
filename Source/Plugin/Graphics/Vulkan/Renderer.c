@@ -32,9 +32,75 @@
 
 /* local includes */
 #include "Renderer.h"
+#include "Vulkan.h"
 
-Bool draw_rect_2d (XuiGraphicsContext *gctx, Rect2D rect) {
-    RETURN_VALUE_IF (!gctx, False, ERR_INVALID_ARGUMENTS);
-    return True;
+Renderer *renderer_init (Renderer *renderer) {
+    RETURN_VALUE_IF (!renderer, Null, ERR_INVALID_ARGUMENTS);
+
+    VkDevice device = vk.device.logical;
+
+    /* create renderpass */
+    {
+        PRINT_ERR ("Given depth image is not in use yet! Fix this...\n");
+
+        VkAttachmentDescription color_attachment = {
+            .flags          = 0,
+            .format         = color_image->format,
+            .samples        = VK_SAMPLE_COUNT_1_BIT,
+            .loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR,
+            .storeOp        = VK_ATTACHMENT_STORE_OP_STORE,
+            .stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+            .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+            .initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED,
+            .finalLayout    = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+        };
+        VkAttachmentReference color_attachment_reference = {
+            .attachment = 0, /* index of color attachment*/
+            .layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+        };
+
+        VkAttachmentReference subpass_attachment_references[] = {color_attachment_reference};
+
+        VkSubpassDescription subpass = {
+            .flags                   = 0,
+            .pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS,
+            .inputAttachmentCount    = 0,
+            .pInputAttachments       = Null,
+            .colorAttachmentCount    = ARRAY_SIZE (subpass_attachment_references),
+            .pColorAttachments       = subpass_attachment_references,
+            .pResolveAttachments     = Null,
+            .pDepthStencilAttachment = Null,
+            .preserveAttachmentCount = 0,
+            .pPreserveAttachments    = Null
+        };
+
+        VkAttachmentDescription render_pass_attachments[] = {color_attachment};
+        VkSubpassDescription    render_pass_subpasses[]   = {subpass};
+
+        VkRenderPassCreateInfo render_pass_create_info = {
+            .sType           = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
+            .pNext           = Null,
+            .flags           = 0,
+            .attachmentCount = ARRAY_SIZE (render_pass_attachments),
+            .pAttachments    = render_pass_attachments,
+            .subpassCount    = ARRAY_SIZE (render_pass_subpasses),
+            .pSubpasses      = render_pass_subpasses,
+            .dependencyCount = 0,
+            .pDependencies   = Null,
+        };
+
+        VkResult res =
+            vkCreateRenderPass (device, &render_pass_create_info, Null, &rt->render_pass);
+        RETURN_VALUE_IF (
+            res != VK_SUCCESS,
+            Null,
+            "Failed to create Vulkan Render Pass. RET = %d\n",
+            res
+        );
+    }
+
+    return renderer;
 }
 
+Renderer *renderer_deinit (Renderer *renderer);
+Bool      renderer_draw_rect_2d (Renderer *renderer, XuiGraphicsContext *gctx, Rect2D rect);

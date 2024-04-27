@@ -45,7 +45,7 @@
 /* local includes */
 #include "Device.h"
 #include "GraphicsContext.h"
-#include "Surface.h"
+#include "Swapchain.h"
 #include "Vulkan.h"
 
 Vulkan vk = {0};
@@ -147,6 +147,13 @@ static Bool init() {
         }
     }
 
+    /* initialize commonly shared device */
+    GOTO_HANDLER_IF (
+        !device_init (&vk.device),
+        INIT_FAILED,
+        "Failed to initialize logical device.\n"
+    );
+
     return True;
 
 INIT_FAILED:
@@ -155,15 +162,23 @@ INIT_FAILED:
 }
 
 static Bool deinit() {
+    /* deinit logical device if created */
+    if (vk.device.logical) {
+        device_deinit (&vk.device);
+    }
+
+    /* free allocated gpu array */
     if (vk.gpus) {
         FREE (vk.gpus);
         vk.gpus = Null;
     }
 
+    /* destroy instance if created */
     if (vk.instance) {
         vkDestroyInstance (vk.instance, Null);
     }
 
+    /* remove references to any handles and pointers */
     memset (&vk, 0, sizeof (Vulkan));
 
     return True;
@@ -173,7 +188,7 @@ static Bool
     draw_2d (XuiGraphicsContext *gctx, XwWindow *xwin, Vertex2D *vertices, Size vertex_count) {
     RETURN_VALUE_IF (!gctx || !xwin || !vertices || !vertex_count, False, ERR_INVALID_ARGUMENTS);
 
-    VkFence fences[] = {gctx->surface.render_fence};
+    VkFence fences[] = {gctx->swapchain.render_fence};
 
     /* wait for all gpu rendering to complete */
     VkResult res = vkWaitForFences (vk.device.logical, ARRAY_SIZE (fences), fences, True, 1e9);

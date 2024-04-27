@@ -35,6 +35,9 @@
 
 #include "Vulkan.h"
 
+#include <Anvie/CrossWindow/Vulkan.h>
+
+
 /**
  * @b Create graphics context for Vulkan plugin.
  *
@@ -49,11 +52,25 @@ XuiGraphicsContext *graphics_context_create (XwWindow *xwin) {
     XuiGraphicsContext *gctx = NEW (XuiGraphicsContext);
     RETURN_VALUE_IF (!gctx, Null, ERR_OUT_OF_MEMORY);
 
-    GOTO_HANDLER_IF (
-        !device_init (&vk.device) || !surface_init (&gctx->surface, xwin),
-        GCTX_FAILED,
-        "Failed to create graphics context\n"
-    );
+    /* create vulkan surface */
+    {
+        VkResult res = xw_window_create_vulkan_surface (xwin, vk.instance, &gctx->surface);
+        GOTO_HANDLER_IF (
+            res != VK_SUCCESS,
+            GCTX_FAILED,
+            "Failed to create Vulkan surface. RET = %d\n",
+            res
+        );
+    }
+
+    /* create swapchain */
+    {
+        GOTO_HANDLER_IF (
+            !swapchain_init (&gctx->swapchain, gctx->surface, xwin),
+            GCTX_FAILED,
+            "Failed to create swapchain\n"
+        );
+    }
 
     return gctx;
 
@@ -70,8 +87,13 @@ GCTX_FAILED:
 void graphics_context_destroy (XuiGraphicsContext *gctx) {
     RETURN_IF (!gctx, ERR_INVALID_ARGUMENTS);
 
-    surface_deinit (&gctx->surface);
-    device_deinit (&vk.device);
+    if (gctx->swapchain.swapchain) {
+        swapchain_deinit (&gctx->swapchain);
+    }
+
+    if (gctx->surface) {
+        vkDestroySurfaceKHR (vk.instance, gctx->surface, Null);
+    }
 
     FREE (gctx);
 }
@@ -91,7 +113,7 @@ Bool graphics_context_resize (XuiGraphicsContext *gctx, XwWindow *xwin) {
     RETURN_VALUE_IF (!gctx || !xwin, False, ERR_INVALID_ARGUMENTS);
 
     RETURN_VALUE_IF (
-        !surface_recreate_swapchain (&gctx->surface, xwin),
+        !swapchain_recreate (&gctx->swapchain, gctx->surface, xwin),
         False,
         "Failed to resize graphics context.\n"
     );

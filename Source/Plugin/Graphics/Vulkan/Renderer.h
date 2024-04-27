@@ -40,61 +40,6 @@
 #include "ShaderResourceBinding.h"
 
 /**
- * @b A set of required render target syncrhonization primitves.
- *
- * To allow concurrency, we must assign each render target it's own set of syncrhonization
- * primitives.
- * */
-typedef struct RenderTargetSyncObjects {
-    /** @b Signaled to the CPU when corresponding render target is no longer being rendered to by 
-     *     the GPU.*/
-    VkFence render_fence;
-
-    /** @b Signaled to the GPU when corresponding render target is no longer being rendered to by
-     *     the GPU.*/
-    VkSemaphore render_semaphore;
-
-    /** @b Signaled to the GPU when corresponding render target is no longer being used for
-     *     presentation to corresponding surface by the GPU. */
-    VkSemaphore present_semaphore;
-} RenderTargetSyncObjects;
-
-/**
- * @b Contains data about a single render target.
- *
- * A render target is where the end render result is stored. The render target is then used
- * to display it's content to a surface. There's a many-to-one connection between the set of
- * render targets and the surface where they can be presented to.
- * */
-typedef struct RenderTarget {
-    /**
-     * @b Each render target has it's own command buffer for recording.
-     *    This allows concurrency to be possible. Meaning, we can record 
-     *    rendering commands for multiple render targets at the same time.
-     * */
-    VkCommandBuffer cmd_buffer;
-
-    /**
-     * @b If we're aiming for concurrency, we need independent syncrhonization
-     *    primitves as well.
-     * */
-    RenderTargetSyncObjects sync;
-
-    /**
-     * @b A framebuffer is the actual render target inside this abstracted away object.
-     *    This is where the GPU will actually output the rendered results.
-     * */
-    VkFramebuffer framebuffer;
-
-    /**
-     * @b Color attachment is where the framebuffer's color data will be stored.
-     *    There's one more attachment (the depth attachment), but that can be
-     *    shared between multiple render targets.
-     * */
-    VkImageView color_attachment;
-} RenderTarget;
-
-/**
  * @b 2D Renderer.
  *
  * The idea of a renderer is to have a common renderer for all windows/surfaces.
@@ -111,12 +56,16 @@ typedef struct Renderer {
      * I don't care about shader effects for now. I just need something working, and render pass
      * abstraction/refactoring comes very late down the road acc. to me.
      * */
-    VkRenderPass          render_pass;
-    ShaderPipeline        pipeline;
-    ShaderResourceBinding shader_resource_binding;
-    DeviceImage           depth_image;
+    VkRenderPass render_pass;
+
+    ShaderPipeline        pipeline_2d;
+    ShaderResourceBinding srb_2d;
+
+    DeviceBuffer vbo_rect_2d; /**< @b Vertex Buffer Object for 2d rectangle */
 } Renderer;
 
-Bool draw_rect_2d (XuiGraphicsContext *gctx, Rect2D scale);
+Renderer *renderer_init (Renderer *renderer);
+Renderer *renderer_deinit (Renderer *renderer);
+Bool      renderer_draw_rect_2d (Renderer *renderer, XuiGraphicsContext *gctx, Rect2D rect);
 
 #endif // ANVIE_CROSSGUI_SOURCE_PLUGIN_GRAPHICS_VULKAN_RENDERER_H

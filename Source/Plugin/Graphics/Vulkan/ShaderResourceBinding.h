@@ -33,9 +33,13 @@
 #ifndef ANVIE_CROSSGUI_SOURCE_PLUGINS_GRAPHICS_VULKAN_SHADER_RESOURCE_BINDING_H
 #define ANVIE_CROSSGUI_SOURCE_PLUGINS_GRAPHICS_VULKAN_SHADER_RESOURCE_BINDING_H
 
-/* local includes */
-#include "Device.h"
-#include "Surface.h"
+#include <Anvie/Types.h>
+
+/* vulkan includes */
+#include <vulkan/vulkan.h>
+
+typedef struct DeviceBuffer DeviceBuffer; /* TODO: Remove this from SRB Object. */
+typedef struct Swapchain    Swapchain;
 
 // NOTE : Create a single unifotm data to store UI mesh data.
 // This will include things like mesh data of button, rounded or plain, or circular, etc...
@@ -55,19 +59,16 @@ typedef struct ShaderResourceBinding {
     DeviceBuffer *uniform_buffer; /**< @b Uniform buffer to be sent to shader */
 } ShaderResourceBinding;
 
-ShaderResourceBinding *shader_resource_binding_create_ui_binding (Device *device);
-void                   shader_resource_binding_destroy (ShaderResourceBinding *srb, Device *device);
+ShaderResourceBinding *shader_resource_binding_create_ui_binding();
+void                   shader_resource_binding_destroy (ShaderResourceBinding *srb);
 
 typedef struct ShaderPipeline {
     VkPipelineLayout pipeline_layout;
     VkPipeline       pipeline;
 } ShaderPipeline;
 
-ShaderPipeline *shader_pipeline_create_ui_pipeline (
-    Device                *device,
-    Surface               *surface,
-    ShaderResourceBinding *srb
-);
-void shader_pipeline_destroy (ShaderPipeline *pipeline, Device *device);
+ShaderPipeline  *
+    shader_pipeline_create_ui_pipeline (Swapchain *swapchain, ShaderResourceBinding *srb);
+void shader_pipeline_destroy (ShaderPipeline *pipeline);
 
 #endif // ANVIE_CROSSGUI_SOURCE_PLUGINS_GRAPHICS_VULKAN_SHADER_RESOURCE_BINDING_H

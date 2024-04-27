@@ -59,9 +59,9 @@ Bool device_deinit (Device *device);
  * @c Device buffer data.
  * */
 typedef struct DeviceBuffer {
-    Size           size;
-    VkBuffer       buffer;
-    VkDeviceMemory memory;
+    Size           size;   /**< @b Allocation size */
+    VkBuffer       buffer; /**< @b Buffer handle */
+    VkDeviceMemory memory; /**< @b Buffer allocated memory handle. */
 } DeviceBuffer;
 
 DeviceBuffer *device_buffer_create (
@@ -77,10 +77,12 @@ DeviceBuffer *device_buffer_memcpy (DeviceBuffer *dbuf, Device *device, void *da
  * @b Device image data.
  * */
 typedef struct DeviceImage {
-    Uint32      width;
-    Uint32      height;
-    VkImage     image;
-    VkImageView image_view;
+    Uint32         width;  /**< @b Image width. */
+    Uint32         height; /**< @b Image height. */
+    VkImage        image;  /**< @b Image handle */
+    VkDeviceMemory memory; /**< @b Allocated device memory handle */
+    VkImageView    view;   /**< @b Image view. */
+    VkFormat       format; /**< @b Image format */
 } DeviceImage;
 
 DeviceImage *device_image_create (
@@ -88,6 +90,7 @@ DeviceImage *device_image_create (
     VkImageUsageFlags usage,
     Uint32            width,
     Uint32            height,
+    VkFormat          format,
     Uint32            queue_family_inddex
 );
 void device_image_destroy (DeviceImage *dimg, Device *device);

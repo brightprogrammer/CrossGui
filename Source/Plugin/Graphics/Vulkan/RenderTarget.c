@@ -1,6 +1,6 @@
 /**
- * @file Surface.h
- * @date Sun, 21st April 2024
+ * @file RenderTarget.h
+ * @date Sat, 27th April 2024
  * @author Siddharth Mishra (admin@brightprogrammer.in)
  * @copyright Copyright 2024 Siddharth Mishra
  * @copyright Copyright 2024 Anvie Labs
@@ -30,35 +30,54 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * */
 
-#ifndef ANVIE_SOURCE_CROSSGUI_PLUGIN_GRAPHICS_VULKAN_SURFACE_H
-#define ANVIE_SOURCE_CROSSGUI_PLUGIN_GRAPHICS_VULKAN_SURFACE_H
-
+#include <Anvie/Common.h>
 #include <Anvie/Types.h>
 
-/* vulkan include */
-#include <vulkan/vulkan.h>
+/* local includes */
+#include "Device.h"
+#include "RenderTarget.h"
+#include "Swapchain.h"
+#include "Vulkan.h"
 
-/* NOTE:
- * From above it might look like it, but almost all functions of surface is using the global
- * Vulkan state. It's using the `VkDevice` handle and `VkInstance` handles from it.
- * */
+RenderTarget *render_target_init (
+    RenderTarget   *rt,
+    VkCommandPool   cmd_pool,
+    SwapchainImage *color_image,
+    DeviceImage    *depth_image
+) {
+    RETURN_VALUE_IF (!rt || !cmd_pool || !depth_image || !color_image, Null, ERR_INVALID_ARGUMENTS);
 
-typedef struct Vulkan   Vulkan;
-typedef struct XwWindow XwWindow;
+    VkDevice device = vk.device.logical;
 
-typedef struct Surface {
-    VkSurfaceKHR surface;                  /**< @b Surface created for corrsponding XwWindow. */
+    /* allocate command buffers */
+    {
+        /* NOTE: Allocating single command buffers at a time can be slow,
+         * but this is a rare operation, so I gues this won't matter that much. */
+        VkCommandBufferAllocateInfo command_buffer_allocate_info = {
+            .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+            .pNext              = Null,
+            .commandPool        = cmd_pool,
+            .level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+            .commandBufferCount = 1
+        };
 
-    VkSwapchainKHR swapchain;              /**< @b Swapchain created for the window. */
-    VkExtent2D     swapchain_image_extent; /**< @b Current swapchain image extent */
-    VkFormat swapchain_image_format;    /**< @b Format of image stored during swapchain creation. */
-    Uint32   swapchain_image_count;     /**< @b Number of images in swapchain. */
-    VkImage *swapchain_images;          /**< @b Handle to images inside swapchain. */
-    VkImageView *swapchain_image_views; /**< @b Image views created for images in swapchain. */
-} Surface;
+        /* allocate command buffer(s) */
+        VkResult res =
+            vkAllocateCommandBuffers (device, &command_buffer_allocate_info, &rt->cmd_buffer);
 
-Surface *surface_init (Surface *surf, XwWindow *win);
-Surface *surface_deinit (Surface *surf);
-Surface *surface_recreate_swapchain (Surface *surf, XwWindow *win);
+        RETURN_VALUE_IF (
+            res != VK_SUCCESS,
+            Null,
+            "Failed to allocate Command Buffers. RET = %d\n",
+            res
+        );
+    }
 
-#endif // ANVIE_SOURCE_CROSSGUI_PLUGIN_GRAPHICS_VULKAN_SURFACE_H
+    /* create framebuffers */
+
+    /* create fences and semaphores */
+
+    return rt;
+}
+
+RenderTarget *render_target_deinit (RenderTarget *rt);

@@ -96,14 +96,12 @@ typedef Bool (*XuiGraphicsContextResize) (XuiGraphicsContext *graphics_context, 
  *
  * @return True if draw was successful.
  * @return False otherwise.
- *
- * @sa XuiGraphicsDrawIndexed2D
  * */
 typedef Bool (*XuiGraphicsDrawRect2D) (
     XuiGraphicsContext *graphics_context,
     XwWindow           *xwin,
-    Rect2D rect,
-    Color color
+    Rect2D              rect,
+    Color               color
 );
 
 #endif // ANVIE_CROSSGUI_PLUGIN_GRAPHICS_API_H

@@ -34,11 +34,11 @@
 #define ANVIE_CROSSGUI_SOURCE_PLUGIN_GRAPHICS_VULKAN_GRAPHICS_CONTEXT_H
 
 /* local includes */
-#include "Device.h"
-#include "Surface.h"
+#include "Swapchain.h"
 
 typedef struct XuiGraphicsContext {
-    Surface surface;
+    VkSurfaceKHR surface;
+    Swapchain    swapchain;
 } XuiGraphicsContext;
 
 XuiGraphicsContext *graphics_context_create (XwWindow *xwin);
