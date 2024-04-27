@@ -12,6 +12,8 @@
 /* for plugin loading */
 #include <dlfcn.h>
 
+// TODO: Implement draw line and draw rectangle methods in plugin.
+
 int main (Int32 argc, CString *argv) {
     RETURN_VALUE_IF (argc < 2, EXIT_FAILURE, "%s <plugin path>\n", argv[0]);
 

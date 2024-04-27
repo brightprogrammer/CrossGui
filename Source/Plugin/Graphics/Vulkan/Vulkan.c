@@ -1,3 +1,37 @@
+/**
+ * @file Vulkan.c 
+ * @date Sun, 21st April 2024
+ * @author Siddharth Mishra (admin@brightprogrammer.in)
+ * @copyright Copyright 2024 Siddharth Mishra
+ * @copyright Copyright 2024 Anvie Labs
+ *
+ * Copyright 2024 Siddharth Mishra, Anvie Labs
+ * 
+ * Redistribution and use in source and binary forms, with or without modification, are permitted 
+ * provided that the following conditions are met:
+ * 
+ * 1. Redistributions of source code must retain the above copyright notice, this list of conditions
+ *    and the following disclaimer.
+ * 
+ * 2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions
+ *    and the following disclaimer in the documentation and/or other materials provided with the
+ *    distribution.
+ * 
+ * 3. Neither the name of the copyright holder nor the names of its contributors may be used to endorse
+ *    or promote products derived from this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS “AS IS” AND ANY EXPRESS OR
+ * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND 
+ * FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+ * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
+ * IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT
+ * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ * */
+
+#include <Anvie/Common.h>
+
 /* libc */
 #include <memory.h>
 
@@ -9,7 +43,6 @@
 #include <Anvie/CrossGui/Plugin/Plugin.h>
 
 /* local includes */
-#include "Anvie/Common.h"
 #include "Device.h"
 #include "GraphicsContext.h"
 #include "Surface.h"
@@ -143,7 +176,7 @@ static Bool
     VkFence fences[] = {gctx->surface.render_fence};
 
     /* wait for all gpu rendering to complete */
-    VkResult res = vkWaitForFences (gctx->device.device, ARRAY_SIZE (fences), fences, True, 1e9);
+    VkResult res = vkWaitForFences (vk.device.logical, ARRAY_SIZE (fences), fences, True, 1e9);
     RETURN_VALUE_IF (
         res != VK_SUCCESS,
         False,
@@ -155,7 +188,7 @@ static Bool
     Uint32 next_image_index = -1;
 
     res = vkAcquireNextImageKHR (
-        gctx->device.device,
+        vk.device.logical,
         gctx->surface.swapchain,
         1e9,
         gctx->surface.present_semaphore,
@@ -165,7 +198,7 @@ static Bool
 
     if (res == VK_SUBOPTIMAL_KHR || res == VK_ERROR_OUT_OF_DATE_KHR) {
         RETURN_VALUE_IF (
-            !surface_recreate_swapchain (&gctx->surface, &gctx->device, xwin),
+            !surface_recreate_swapchain (&gctx->surface, xwin),
             False,
             "Failed to recreate swapchain\n"
         );
@@ -180,7 +213,7 @@ static Bool
     );
 
     /* need to reset fence before we use it again */
-    res = vkResetFences (gctx->device.device, ARRAY_SIZE (fences), fences);
+    res = vkResetFences (vk.device.logical, ARRAY_SIZE (fences), fences);
     RETURN_VALUE_IF (res != VK_SUCCESS, False, "Failed to reset fences. RET = %d\n", res);
 
     /* reset command buffer and record draw commands again */
@@ -247,7 +280,7 @@ static Bool
     };
 
     res = vkQueueSubmit (
-        gctx->device.graphics_queue.handle,
+        vk.device.graphics_queue.handle,
         1,
         &submit_info,
         gctx->surface.render_fence
@@ -269,10 +302,10 @@ static Bool
         .pImageIndices      = &next_image_index
     };
 
-    res = vkQueuePresentKHR (gctx->device.graphics_queue.handle, &present_info);
+    res = vkQueuePresentKHR (vk.device.graphics_queue.handle, &present_info);
     if (res == VK_SUBOPTIMAL_KHR || res == VK_ERROR_OUT_OF_DATE_KHR) {
         RETURN_VALUE_IF (
-            !surface_recreate_swapchain (&gctx->surface, &gctx->device, xwin),
+            !surface_recreate_swapchain (&gctx->surface, xwin),
             False,
             "Failed to recreate swapchain\n"
         );
@@ -296,8 +329,7 @@ static XuiGraphicsPlugin vulkan_graphics_plugin_data = {
     .context_resize  = graphics_context_resize,
 
     /* drawing methods */
-    .draw_2d         = draw_2d,
-    .draw_indexed_2d = Null
+    .draw_rect_2d = draw_rect_2d
 };
 
 /**

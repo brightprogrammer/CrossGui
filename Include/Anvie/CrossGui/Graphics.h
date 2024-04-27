@@ -40,6 +40,16 @@ typedef struct Position2D {
     Float32 y;
 } Position2D;
 
+typedef struct Scale2D {
+    Float32 w; /**< @b Scale length of shape by this factor. */
+    Float32 h; /**< @b Scale height of shape by this factor. */
+} Scale2D;
+
+typedef struct Rect2D {
+    Position2D position; /**< @b Rectangle position. */
+    Scale2D    scale;    /**< @b Scale position. */
+} Rect2D;
+
 typedef struct Color {
     Float32 r;
     Float32 g;
@@ -51,5 +61,6 @@ typedef struct Vertex2D {
     Position2D position;
     Color      color;
 } Vertex2D;
+
 
 #endif // ANVIE_CROSSGUI_GRAPHICS_H

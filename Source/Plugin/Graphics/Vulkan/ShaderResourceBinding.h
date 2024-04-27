@@ -1,6 +1,6 @@
 /**
- * @file Graphics.h
- * @date Sat, 20th April 2024
+ * @file ShaderResourceBinding.h
+ * @date Sat, 27th April 2024
  * @author Siddharth Mishra (admin@brightprogrammer.in)
  * @copyright Copyright 2024 Siddharth Mishra
  * @copyright Copyright 2024 Anvie Labs
@@ -30,22 +30,44 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * */
 
-#ifndef ANVIE_CROSSGUI_PLUGIN_GRAPHICS_GRAPHICS_H
-#define ANVIE_CROSSGUI_PLUGIN_GRAPHICS_GRAPHICS_H
+#ifndef ANVIE_CROSSGUI_SOURCE_PLUGINS_GRAPHICS_VULKAN_SHADER_RESOURCE_BINDING_H
+#define ANVIE_CROSSGUI_SOURCE_PLUGINS_GRAPHICS_VULKAN_SHADER_RESOURCE_BINDING_H
 
-#include <Anvie/CrossGui/Plugin/Graphics/API.h>
+/* local includes */
+#include "Device.h"
+#include "Surface.h"
 
-/**
- * @b Defines set of callbacks to be used to interact with the plugin.
- * */
-typedef struct XuiGraphicsPlugin {
-    /* graphics context methods */
-    XuiGraphicsContextCreate  context_create;
-    XuiGraphicsContextDestroy context_destroy;
-    XuiGraphicsContextResize  context_resize;
+// NOTE : Create a single unifotm data to store UI mesh data.
+// This will include things like mesh data of button, rounded or plain, or circular, etc...
+// This uniform is a global uniform and will always be bound. At top of the hierarchy of
+// shader resource bindings.
+// Use GpuUiData for passing all these data
+typedef struct GpuUiData {
+    Float32 button_width;  /**< @b Scale width of all buttons by this factor */
+    Float32 button_height; /**< @b Scale height of all buttons by this factor */
+} GpuUiData;
 
-    /* drawing methods */
-    XuiGraphicsDrawRect2D draw_rect_2d;
-} XuiGraphicsPlugin;
+typedef struct ShaderResourceBinding {
+    VkDescriptorPool      descriptor_pool;
+    VkDescriptorSetLayout descriptor_set_layout;
+    VkDescriptorSet       descriptor_set;
 
-#endif // ANVIE_CROSSGUI_PLUGIN_GRAPHICS_GRAPHICS_H
+    DeviceBuffer *uniform_buffer; /**< @b Uniform buffer to be sent to shader */
+} ShaderResourceBinding;
+
+ShaderResourceBinding *shader_resource_binding_create_ui_binding (Device *device);
+void                   shader_resource_binding_destroy (ShaderResourceBinding *srb, Device *device);
+
+typedef struct ShaderPipeline {
+    VkPipelineLayout pipeline_layout;
+    VkPipeline       pipeline;
+} ShaderPipeline;
+
+ShaderPipeline *shader_pipeline_create_ui_pipeline (
+    Device                *device,
+    Surface               *surface,
+    ShaderResourceBinding *srb
+);
+void shader_pipeline_destroy (ShaderPipeline *pipeline, Device *device);
+
+#endif // ANVIE_CROSSGUI_SOURCE_PLUGINS_GRAPHICS_VULKAN_SHADER_RESOURCE_BINDING_H

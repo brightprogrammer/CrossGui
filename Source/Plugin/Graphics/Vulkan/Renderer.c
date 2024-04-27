@@ -1,6 +1,6 @@
 /**
- * @file Graphics.h
- * @date Sat, 20th April 2024
+ * @file Renderer.c
+ * @date Sat, 27th April 2024
  * @author Siddharth Mishra (admin@brightprogrammer.in)
  * @copyright Copyright 2024 Siddharth Mishra
  * @copyright Copyright 2024 Anvie Labs
@@ -30,22 +30,11 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * */
 
-#ifndef ANVIE_CROSSGUI_PLUGIN_GRAPHICS_GRAPHICS_H
-#define ANVIE_CROSSGUI_PLUGIN_GRAPHICS_GRAPHICS_H
+/* local includes */
+#include "Renderer.h"
 
-#include <Anvie/CrossGui/Plugin/Graphics/API.h>
+Bool draw_rect_2d (XuiGraphicsContext *gctx, Rect2D rect) {
+    RETURN_VALUE_IF (!gctx, False, ERR_INVALID_ARGUMENTS);
+    return True;
+}
 
-/**
- * @b Defines set of callbacks to be used to interact with the plugin.
- * */
-typedef struct XuiGraphicsPlugin {
-    /* graphics context methods */
-    XuiGraphicsContextCreate  context_create;
-    XuiGraphicsContextDestroy context_destroy;
-    XuiGraphicsContextResize  context_resize;
-
-    /* drawing methods */
-    XuiGraphicsDrawRect2D draw_rect_2d;
-} XuiGraphicsPlugin;
-
-#endif // ANVIE_CROSSGUI_PLUGIN_GRAPHICS_GRAPHICS_H
