@@ -37,10 +37,13 @@
 
 /* local includes */
 #include "GraphicsContext.h"
-#include "ShaderResourceBinding.h"
+
+typedef struct RenderTarget       RenderTarget;
+typedef struct Swapchain          Swapchain;
+typedef struct XuiGraphicsContext XuiGraphicsContext;
 
 /**
- * @b 2D Renderer.
+ * @b Renderer.
  *
  * The idea of a renderer is to have a common renderer for all windows/surfaces.
  * CrossGui does not restrict user-code to have only one single window/surface, otherwise, it
@@ -50,17 +53,6 @@
  * between multiple windows.
  * */
 typedef struct Renderer {
-    /**
-     * @b For now there's only one single renderpass, which only has one single subpass.
-     * 
-     * I don't care about shader effects for now. I just need something working, and render pass
-     * abstraction/refactoring comes very late down the road acc. to me.
-     * */
-    VkRenderPass render_pass;
-
-    ShaderPipeline        pipeline_2d;
-    ShaderResourceBinding srb_2d;
-
     DeviceBuffer vbo_rect_2d; /**< @b Vertex Buffer Object for 2d rectangle */
 } Renderer;
 

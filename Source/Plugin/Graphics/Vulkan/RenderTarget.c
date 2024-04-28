@@ -39,45 +39,73 @@
 #include "Swapchain.h"
 #include "Vulkan.h"
 
-RenderTarget *render_target_init (
-    RenderTarget   *rt,
-    VkCommandPool   cmd_pool,
-    SwapchainImage *color_image,
-    DeviceImage    *depth_image
-) {
-    RETURN_VALUE_IF (!rt || !cmd_pool || !depth_image || !color_image, Null, ERR_INVALID_ARGUMENTS);
+/* libc includes */
+#include <memory.h>
+
+/**
+ * @b Initialize given @c RenderTargetSyncObjects.
+ *
+ * @param rtsync.
+ *
+ * @return @c rtsync on success.
+ * @return @c Null otherwise.
+ * */
+RenderTargetSyncObjects *render_target_sync_objects_init (RenderTargetSyncObjects *rtsync) {
+    RETURN_VALUE_IF (!rtsync, Null, ERR_INVALID_ARGUMENTS);
+
+    VkDevice          device            = vk.device.logical;
+    VkFenceCreateInfo fence_create_info = {
+        .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+        .pNext = 0,
+        .flags = VK_FENCE_CREATE_SIGNALED_BIT
+    };
+
+    VkResult res = vkCreateFence (device, &fence_create_info, Null, &rtsync->render_fence);
+    GOTO_HANDLER_IF (res != VK_SUCCESS, INIT_FAILED, "Failed to create Fence. RET = %d\n", res);
+
+    VkSemaphoreCreateInfo semaphore_create_info =
+        {.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO, .pNext = Null, .flags = 0};
+
+    res = vkCreateSemaphore (device, &semaphore_create_info, Null, &rtsync->render_semaphore);
+    GOTO_HANDLER_IF (res != VK_SUCCESS, INIT_FAILED, "Failed to create Semaphore. RET = %d\n", res);
+
+    res = vkCreateSemaphore (device, &semaphore_create_info, Null, &rtsync->present_semaphore);
+    GOTO_HANDLER_IF (res != VK_SUCCESS, INIT_FAILED, "Failed to create Semaphore. RET = %d\n", res);
+
+    return rtsync;
+
+INIT_FAILED:
+    render_target_sync_objects_deinit (rtsync);
+    return Null;
+}
+
+/**
+ * @b De-initialize given @c RenderTargetSyncObjects.
+ *
+ * @param rtsync.
+ *
+ * @return @c rtsync on success.
+ * @return @c Null otherwise.
+ * */
+RenderTargetSyncObjects *render_target_sync_objects_deinit (RenderTargetSyncObjects *rtsync) {
+    RETURN_VALUE_IF (!rtsync, Null, ERR_INVALID_ARGUMENTS);
 
     VkDevice device = vk.device.logical;
 
-    /* allocate command buffers */
-    {
-        /* NOTE: Allocating single command buffers at a time can be slow,
-         * but this is a rare operation, so I gues this won't matter that much. */
-        VkCommandBufferAllocateInfo command_buffer_allocate_info = {
-            .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-            .pNext              = Null,
-            .commandPool        = cmd_pool,
-            .level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-            .commandBufferCount = 1
-        };
+    vkDeviceWaitIdle (device);
 
-        /* allocate command buffer(s) */
-        VkResult res =
-            vkAllocateCommandBuffers (device, &command_buffer_allocate_info, &rt->cmd_buffer);
-
-        RETURN_VALUE_IF (
-            res != VK_SUCCESS,
-            Null,
-            "Failed to allocate Command Buffers. RET = %d\n",
-            res
-        );
+    if (rtsync->present_semaphore) {
+        vkDestroySemaphore (device, rtsync->present_semaphore, Null);
+    }
+    if (rtsync->render_semaphore) {
+        vkDestroySemaphore (device, rtsync->render_semaphore, Null);
+    }
+    if (rtsync->render_fence) {
+        vkDestroyFence (device, rtsync->render_fence, Null);
     }
 
-    /* create framebuffers */
+    /* restore to invalid state */
+    memset (rtsync, 0, sizeof (RenderTarget));
 
-    /* create fences and semaphores */
-
-    return rt;
+    return rtsync;
 }
-
-RenderTarget *render_target_deinit (RenderTarget *rt);

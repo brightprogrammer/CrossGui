@@ -61,12 +61,17 @@ typedef struct RenderTargetSyncObjects {
     VkSemaphore present_semaphore;
 } RenderTargetSyncObjects;
 
+RenderTargetSyncObjects *render_target_sync_objects_init (RenderTargetSyncObjects *sync);
+RenderTargetSyncObjects *render_target_sync_objects_deinit (RenderTargetSyncObjects *sync);
+
 /**
  * @b Contains data about a single render target.
  *
  * A render target is where the end render result is stored. The render target is then used
  * to display it's content to a surface. There's a many-to-one connection between the set of
  * render targets and the surface where they can be presented to.
+ *
+ * @c RenderTarget objects are initialized by the parent @c RenderPass object.
  * */
 typedef struct RenderTarget {
     /**
@@ -74,7 +79,7 @@ typedef struct RenderTarget {
      *    This allows concurrency to be possible. Meaning, we can record 
      *    rendering commands for multiple render targets at the same time.
      * */
-    VkCommandBuffer cmd_buffer;
+    VkCommandBuffer command_buffer;
 
     /**
      * @b If we're aiming for concurrency, we need independent syncrhonization
@@ -88,13 +93,5 @@ typedef struct RenderTarget {
      * */
     VkFramebuffer framebuffer;
 } RenderTarget;
-
-RenderTarget *render_target_init (
-    RenderTarget   *rt,
-    VkCommandPool   cmd_pool,
-    SwapchainImage *color_image,
-    DeviceImage    *depth_image
-);
-RenderTarget *render_target_deinit (RenderTarget *rt);
 
 #endif // ANVIE_CROSSGUI_SOURCE_PLUGIN_GRAPHICS_VULKAN_RENDER_TARGET_H

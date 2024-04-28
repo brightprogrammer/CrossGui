@@ -35,10 +35,12 @@
 
 /* local includes */
 #include "Swapchain.h"
+#include "RenderPass.h"
 
 typedef struct XuiGraphicsContext {
     VkSurfaceKHR surface;
     Swapchain    swapchain;
+    RenderPass default_render_pass;
 } XuiGraphicsContext;
 
 XuiGraphicsContext *graphics_context_create (XwWindow *xwin);

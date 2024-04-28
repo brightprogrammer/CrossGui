@@ -77,12 +77,11 @@ DeviceBuffer *device_buffer_memcpy (DeviceBuffer *dbuf, Device *device, void *da
  * @b Device image data.
  * */
 typedef struct DeviceImage {
-    Uint32         width;  /**< @b Image width. */
-    Uint32         height; /**< @b Image height. */
     VkImage        image;  /**< @b Image handle */
     VkDeviceMemory memory; /**< @b Allocated device memory handle */
     VkImageView    view;   /**< @b Image view. */
     VkFormat       format; /**< @b Image format */
+    VkExtent2D     extent; /**< @b Image dimensions. */
 } DeviceImage;
 
 DeviceImage *device_image_create (

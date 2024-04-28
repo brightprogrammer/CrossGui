@@ -39,12 +39,14 @@
 /* crosswindow */
 #include <Anvie/CrossWindow/Vulkan.h>
 #include <Anvie/CrossWindow/Window.h>
-#include <vulkan/vulkan_core.h>
 
 /* local includes */
 #include "RenderTarget.h"
 #include "Swapchain.h"
 #include "Vulkan.h"
+
+/* libc includes */
+#include <memory.h>
 
 /**
  * @b Initialize given Swapchain object.
@@ -57,14 +59,6 @@
  * */
 Swapchain *swapchain_init (Swapchain *swapchain, VkSurfaceKHR surface, XwWindow *win) {
     RETURN_VALUE_IF (!surface || !win, Null, ERR_INVALID_ARGUMENTS);
-
-    GOTO_HANDLER_IF (
-        !surface_create_swapchain_image_views (surface) ||
-            !surface_create_command_objects (surface) || !surface_create_renderpass (surface) ||
-            !surface_create_framebuffers (surface) || !surface_create_sync_objects (surface),
-        INIT_FAILED,
-        "Failed to initialize Surface object\n"
-    );
 
     VkDevice         device = vk.device.logical;
     VkPhysicalDevice gpu    = vk.device.physical;
@@ -224,8 +218,7 @@ Swapchain *swapchain_init (Swapchain *swapchain, VkSurfaceKHR surface, XwWindow 
 
         /* store image handles */
         for (Size s = 0; s < swapchain->image_count; s++) {
-            swapchain->images[s].image  = swapchain_images[s];
-            swapchain->images[s].format = swapchain->image_format;
+            swapchain->images[s].image = swapchain_images[s];
         }
     }
 
@@ -274,29 +267,6 @@ Swapchain *swapchain_init (Swapchain *swapchain, VkSurfaceKHR surface, XwWindow 
         }
     }
 
-    /* create command pool */
-    {
-        VkCommandPoolCreateInfo command_pool_create_info = {
-            .sType            = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-            .pNext            = Null,
-            .flags            = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
-            .queueFamilyIndex = vk.device.graphics_queue.family_index
-        };
-
-        /* create command pool */
-        VkResult res =
-            vkCreateCommandPool (device, &command_pool_create_info, Null, &swapchain->cmd_pool);
-        GOTO_HANDLER_IF (
-            res != VK_SUCCESS,
-            INIT_FAILED,
-            "Failed to create Command Pool. RET = %d\n",
-            res
-        );
-    }
-
-    /* create render targets */
-    {}
-
     return swapchain;
 
 INIT_FAILED:
@@ -305,16 +275,15 @@ INIT_FAILED:
 }
 
 /**
- * @b De-initialize but don't free the given surface object.
+ * @b De-initialize but don't free the given swapchain object.
  *
- * @param surf
- * @param vk 
+ * @param swapchain 
  *
- * @return @c surface on success.
+ * @return @c swapchain on success.
  * @return Null otherwise.
  * */
-Surface *surface_deinit (Surface *surface) {
-    RETURN_VALUE_IF (!surface, Null, ERR_INVALID_ARGUMENTS);
+Swapchain *swapchain_deinit (Swapchain *swapchain) {
+    RETURN_VALUE_IF (!swapchain, Null, ERR_INVALID_ARGUMENTS);
 
     /* for shorter name */
     VkDevice device = vk.device.logical;
@@ -323,67 +292,49 @@ Surface *surface_deinit (Surface *surface) {
     if (device) {
         vkDeviceWaitIdle (device);
 
-        if (surface->render_semaphore) {
-            vkDestroySemaphore (device, surface->render_semaphore, Null);
-        }
-        if (surface->present_semaphore) {
-            vkDestroySemaphore (device, surface->present_semaphore, Null);
-        }
-        if (surface->render_fence) {
-            vkDestroyFence (device, surface->render_fence, Null);
+        /* destroy render targets */
+        if (swapchain->render_targets) {
+            for (Size s = 0; s < swapchain->image_count; s++) {
+                render_target_deinit (swapchain->render_targets + s);
+            }
+
+            /* make all entries invalid */
+            memset (swapchain->render_targets, 0, sizeof (RenderTarget) * swapchain->image_count);
         }
 
-        if (surface->framebuffers) {
-            for (Size s = 0; s < surface->swapchain_image_count; s++) {
-                if (surface->framebuffers[s]) {
-                    vkDestroyFramebuffer (device, surface->framebuffers[s], Null);
+        /* destroy image views in swapchain image */
+        if (swapchain->images) {
+            for (Size s = 0; s < swapchain->image_count; s++) {
+                if (swapchain->images[s].view) {
+                    vkDestroyImageView (device, swapchain->images[s].view, Null);
                 }
             }
+
+            /* make all entries invalid */
+            memset (swapchain->images, 0, sizeof (SwapchainImage) * swapchain->image_count);
         }
 
-        if (surface->render_pass) {
-            vkDestroyRenderPass (device, surface->render_pass, Null);
+        if (swapchain->cmd_pool) {
+            vkDestroyCommandPool (device, swapchain->cmd_pool, Null);
         }
 
-        if (surface->cmd_pool) {
-            vkDestroyCommandPool (device, surface->cmd_pool, Null);
+        if (swapchain->swapchain) {
+            vkDestroySwapchainKHR (device, swapchain->swapchain, Null);
         }
-
-        if (surface->swapchain_image_views) {
-            for (Size s = 0; s < surface->swapchain_image_count; s++) {
-                if (surface->swapchain_image_views[s]) {
-                    vkDestroyImageView (device, surface->swapchain_image_views[s], Null);
-                    surface->swapchain_image_views[s] = VK_NULL_HANDLE;
-                }
-            }
-        }
-
-        if (surface->swapchain) {
-            vkDestroySwapchainKHR (device, surface->swapchain, Null);
-        }
-    }
-
-    if (surface->surface) {
-        vkDestroySurfaceKHR (vk.instance, surface->surface, Null);
     }
 
     /* all memory deallocations out of if statements, having their own checks */
-    if (surface->framebuffers) {
-        FREE (surface->framebuffers);
-        surface->framebuffers = Null;
+    if (swapchain->render_targets) {
+        FREE (swapchain->render_targets);
+        swapchain->render_targets = Null;
     }
 
-    if (surface->swapchain_image_views) {
-        FREE (surface->swapchain_image_views);
-        surface->swapchain_image_views = Null;
+    if (swapchain->images) {
+        FREE (swapchain->images);
+        swapchain->images = Null;
     }
 
-    if (surface->swapchain_images) {
-        FREE (surface->swapchain_images);
-        surface->swapchain_images = Null;
-    }
-
-    return surface;
+    return swapchain;
 }
 
 /**
@@ -400,120 +351,46 @@ Swapchain *swapchain_reinit (Swapchain *swapchain, VkSurfaceKHR surface, XwWindo
     /* shorter name for vk.device.logical */
     VkDevice device = vk.device.logical;
 
-    RETURN_VALUE_IF (
-        !surface->swapchain_image_views || !surface->framebuffers,
-        Null,
-        "Swapchain recreate called but, previous images/views/framebuffers are invalid\n"
-    );
+    if (device) {
+        vkDeviceWaitIdle (device);
 
-    vkDeviceWaitIdle (device);
+        /* destroy render targets */
+        if (swapchain->render_targets) {
+            for (Size s = 0; s < swapchain->image_count; s++) {
+                render_target_deinit (swapchain->render_targets + s);
+            }
 
-    vkDestroySemaphore (device, surface->present_semaphore, Null);
-    vkDestroySemaphore (device, surface->render_semaphore, Null);
-    vkDestroyFence (device, surface->render_fence, Null);
+            /* make all entries invalid */
+            memset (swapchain->render_targets, 0, sizeof (RenderTarget) * swapchain->image_count);
+        }
 
-    vkDestroyCommandPool (device, surface->cmd_pool, Null);
+        /* destroy image views in swapchain image */
+        if (swapchain->images) {
+            for (Size s = 0; s < swapchain->image_count; s++) {
+                if (swapchain->images[s].view) {
+                    vkDestroyImageView (device, swapchain->images[s].view, Null);
+                }
+            }
 
-    /* destroy image views and framebuffers because they need to be recreated */
-    for (Size s = 0; s < surface->swapchain_image_count; s++) {
-        vkDestroyImageView (device, surface->swapchain_image_views[s], Null);
-        vkDestroyFramebuffer (device, surface->framebuffers[s], Null);
+            /* make all entries invalid */
+            memset (swapchain->images, 0, sizeof (SwapchainImage) * swapchain->image_count);
+        }
 
-        surface->swapchain_image_views[s] = VK_NULL_HANDLE;
-        surface->framebuffers[s]          = VK_NULL_HANDLE;
+        /* Destroy command pool, 
+         * This will automatically free allocated command buffers in render target as well. */
+        if (swapchain->cmd_pool) {
+            vkDestroyCommandPool (device, swapchain->cmd_pool, Null);
+        }
+
+        /* store handle of old swapchain */
+        VkSwapchainKHR old_swapchain = swapchain->swapchain;
+
+        /* create new swapchain */
+        swapchain_init (swapchain, surface, win);
+
+        /* destroy old swapchain after recreation */
+        vkDestroySwapchainKHR (device, old_swapchain, Null);
     }
 
-    /* store handle of old swapchain */
-    VkSwapchainKHR old_swapchain = surface->swapchain;
-
-    /* create new swapchain */
-    RETURN_VALUE_IF (
-        !surface_create_swapchain (surface, win) || !surface_fetch_swapchain_images (surface) ||
-            !surface_create_swapchain_image_views (surface) ||
-            !surface_create_framebuffers (surface) || !surface_create_sync_objects (surface) ||
-            !surface_create_command_objects (surface),
-        Null,
-        "Failed to recreate swapchain\n"
-    );
-
-    /* destroy old swapchain after recreation */
-    vkDestroySwapchainKHR (device, old_swapchain, Null);
-
-    return surface;
-}
-
-/**************************************************************************************************/
-/******************************* SURFACE PRIVATE METHOD DEFINITIONS *******************************/
-/**************************************************************************************************/
-/**
- * @b Create framebuffers for the swapchain inside surface.
- *
- * @param surface 
- *
- * @return @c surface on Success 
- * @return @c Null otherwise.
- * */
-static inline Surface *surface_create_framebuffers (Surface *surface) {
-    RETURN_VALUE_IF (!surface, Null, ERR_INVALID_ARGUMENTS);
-
-    VkDevice device = vk.device.logical;
-
-    surface->framebuffers =
-        REALLOCATE (surface->framebuffers, VkFramebuffer, surface->swapchain_image_count);
-    RETURN_VALUE_IF (!surface->framebuffers, Null, ERR_OUT_OF_MEMORY);
-
-    VkFramebufferCreateInfo framebuffer_create_info = {
-        .sType           = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
-        .pNext           = Null,
-        .flags           = 0,
-        .renderPass      = surface->render_pass,
-        .attachmentCount = 1, /* only color attachment for now */
-        .pAttachments    = Null,
-        .width           = surface->swapchain_image_extent.width,
-        .height          = surface->swapchain_image_extent.height,
-        .layers          = 1
-    };
-
-    for (Size s = 0; s < surface->swapchain_image_count; s++) {
-        framebuffer_create_info.pAttachments = &surface->swapchain_image_views[s];
-        VkResult res =
-            vkCreateFramebuffer (device, &framebuffer_create_info, Null, &surface->framebuffers[s]);
-        RETURN_VALUE_IF (res != VK_SUCCESS, Null, "Failed to create framebuffer. RET = %d\n", res);
-    }
-
-    return surface;
-}
-
-/**
- * @b Create synchronization objects like semaphores, fences, etc.... and store in surface.
- *
- * @param surface 
- *
- * @return @c surface on success.
- * @return @c Null otherwise,
- * */
-static inline Surface *surface_create_sync_objects (Surface *surface) {
-    RETURN_VALUE_IF (!surface, Null, ERR_INVALID_ARGUMENTS);
-
-    VkDevice device = vk.device.logical;
-
-    VkFenceCreateInfo fence_create_info = {
-        .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
-        .pNext = 0,
-        .flags = VK_FENCE_CREATE_SIGNALED_BIT
-    };
-
-    VkResult res = vkCreateFence (device, &fence_create_info, Null, &surface->render_fence);
-    RETURN_VALUE_IF (res != VK_SUCCESS, Null, "Failed to create Fence. RET = %d\n", res);
-
-    VkSemaphoreCreateInfo semaphore_create_info =
-        {.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO, .pNext = Null, .flags = 0};
-
-    res = vkCreateSemaphore (device, &semaphore_create_info, Null, &surface->render_semaphore);
-    RETURN_VALUE_IF (res != VK_SUCCESS, Null, "Failed to create Semaphore. RET = %d\n", res);
-
-    res = vkCreateSemaphore (device, &semaphore_create_info, Null, &surface->present_semaphore);
-    RETURN_VALUE_IF (res != VK_SUCCESS, Null, "Failed to create Semaphore. RET = %d\n", res);
-
-    return surface;
+    return swapchain;
 }

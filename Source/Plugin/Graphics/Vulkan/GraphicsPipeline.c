@@ -1,5 +1,5 @@
 /**
- * @file ShaderResourceBinding.c
+ * @file GraphicsPipeline.c
  * @date Sat, 27th April 2024
  * @author Siddharth Mishra (admin@brightprogrammer.in)
  * @copyright Copyright 2024 Siddharth Mishra
@@ -34,7 +34,8 @@
 #include <Anvie/CrossGui/Graphics.h>
 
 /* local includes */
-#include "ShaderResourceBinding.h"
+#include "GraphicsPipeline.h"
+#include "RenderPass.h"
 #include "Swapchain.h"
 #include "Vulkan.h"
 
@@ -55,11 +56,15 @@ static inline VkShaderModule load_shader (VkDevice device, CString path);
  * @return @c ShaderResourceBinding on success.
  * @return @c Null otherwise.
  * */
-ShaderResourceBinding *shader_resource_binding_create_ui_binding() {
-    ShaderResourceBinding *srb = NEW (ShaderResourceBinding);
-    RETURN_VALUE_IF (!srb, Null, ERR_OUT_OF_MEMORY);
+GraphicsPipeline *graphics_pipeline_init_default (
+    GraphicsPipeline *pipeline,
+    RenderPass       *render_pass,
+    Swapchain        *swapchain
+) {
+    RETURN_VALUE_IF (!pipeline || !render_pass || !swapchain, Null, ERR_OUT_OF_MEMORY);
 
-    VkDevice device = vk.device.logical;
+    VkDevice       device      = vk.device.logical;
+    VkShaderModule vert_shader = VK_NULL_HANDLE, frag_shader = VK_NULL_HANDLE;
 
     /* create descriptor pool */
     {
@@ -80,11 +85,11 @@ ShaderResourceBinding *shader_resource_binding_create_ui_binding() {
             device,
             &descriptor_pool_create_info,
             Null,
-            &srb->descriptor_pool
+            &pipeline->descriptor_pool
         );
         GOTO_HANDLER_IF (
             res != VK_SUCCESS,
-            POOL_FAILED,
+            INIT_FAILED,
             "Failed to create descriptor set. RET = %d\n",
             res
         );
@@ -112,11 +117,11 @@ ShaderResourceBinding *shader_resource_binding_create_ui_binding() {
             device,
             &set_layout_create_info,
             Null,
-            &srb->descriptor_set_layout
+            &pipeline->descriptor_set_layout
         );
         GOTO_HANDLER_IF (
             res != VK_SUCCESS,
-            SET_LAYOUT_FAILED,
+            INIT_FAILED,
             "Failed to create descriptor set layout. RET = %d\n",
             res
         );
@@ -127,121 +132,60 @@ ShaderResourceBinding *shader_resource_binding_create_ui_binding() {
         VkDescriptorSetAllocateInfo set_allocate_info = {
             .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
             .pNext              = Null,
-            .descriptorPool     = srb->descriptor_pool,
+            .descriptorPool     = pipeline->descriptor_pool,
             .descriptorSetCount = 1,
-            .pSetLayouts        = (VkDescriptorSetLayout[]) {srb->descriptor_set_layout}
+            .pSetLayouts        = (VkDescriptorSetLayout[]) {pipeline->descriptor_set_layout}
         };
 
-        VkResult res = vkAllocateDescriptorSets (device, &set_allocate_info, &srb->descriptor_set);
+        VkResult res =
+            vkAllocateDescriptorSets (device, &set_allocate_info, &pipeline->descriptor_set);
         GOTO_HANDLER_IF (
             res != VK_SUCCESS,
-            SET_ALLOC_FAILED,
+            INIT_FAILED,
             "Failed to create descriptor set layout. RET = %d\n",
             res
         );
     }
 
     /* create uniform buffer to send GPU data */
-    {
-        srb->uniform_buffer = device_buffer_create (
-            &vk.device,
-            VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-            sizeof (GpuUiData),
-            vk.device.graphics_queue.family_index
-        );
-
-        GOTO_HANDLER_IF (
-            !srb->uniform_buffer,
-            UNIFORM_FAILED,
-            "Failed to create a uniform buffer for passing UI data to GPU\n"
-        );
-    }
+    // {
+    //     pipeline->uniform_buffer = device_buffer_create (
+    //         &vk.device,
+    //         VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+    //         sizeof (GpuUiData),
+    //         vk.device.graphics_queue.family_index
+    //     );
+    //
+    //     GOTO_HANDLER_IF (
+    //         !pipeline->uniform_buffer,
+    //         UNIFORM_FAILED,
+    //         "Failed to create a uniform buffer for passing UI data to GPU\n"
+    //     );
+    // }
 
     /* update descriptor set by writing to one */
-    {
-        VkDescriptorBufferInfo buffer_info = {
-            .buffer = srb->uniform_buffer->buffer,
-            .range  = srb->uniform_buffer->size,
-            .offset = 0
-        };
-
-        VkWriteDescriptorSet write_descriptor_set = {
-            .sType            = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .pNext            = Null,
-            .dstSet           = srb->descriptor_set,
-            .dstBinding       = 0,
-            .dstArrayElement  = 0,
-            .descriptorCount  = 1,
-            .descriptorType   = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            .pImageInfo       = Null,
-            .pBufferInfo      = &buffer_info,
-            .pTexelBufferView = Null
-        };
-
-        vkUpdateDescriptorSets (device, 1, &write_descriptor_set, 0, Null);
-    }
-
-    return srb;
-
-UNIFORM_FAILED:
-    /* follwing down this will automatically free the descriptor set */
-SET_ALLOC_FAILED:
-    vkDestroyDescriptorSetLayout (device, srb->descriptor_set_layout, Null);
-SET_LAYOUT_FAILED:
-    vkDestroyDescriptorPool (device, srb->descriptor_pool, Null);
-POOL_FAILED:
-    FREE (srb);
-    return Null;
-}
-
-/**
- * @b Destroy given ShaderResourceBinding object.
- *
- * @param srb 
- * @param device
- * */
-void shader_resource_binding_destroy (ShaderResourceBinding *srb) {
-    RETURN_IF (!srb, ERR_INVALID_ARGUMENTS);
-
-    VkDevice device = vk.device.logical;
-
-    vkDeviceWaitIdle (device);
-
-    if (srb->uniform_buffer) {
-        device_buffer_destroy (srb->uniform_buffer, &vk.device);
-        srb->uniform_buffer = Null;
-    }
-
-    if (srb->descriptor_set_layout) {
-        vkDestroyDescriptorSetLayout (device, srb->descriptor_set_layout, Null);
-        srb->descriptor_set_layout = VK_NULL_HANDLE;
-    }
-
-    if (srb->descriptor_pool) {
-        vkDestroyDescriptorPool (device, srb->descriptor_pool, Null);
-        srb->descriptor_pool = VK_NULL_HANDLE;
-        srb->descriptor_set  = VK_NULL_HANDLE;
-    }
-
-    FREE (srb);
-}
-
-/**
- * @b Create graphics pipeline and store it in given Surface.
- *
- * @param surface
- *
- * @return @c surface on success.
- * @return @c Null otherwise.
- * */
-ShaderPipeline *
-    shader_pipeline_create_ui_pipeline (Swapchain *swapchain, ShaderResourceBinding *srb) {
-    RETURN_VALUE_IF (!srb || !swapchain, Null, ERR_INVALID_ARGUMENTS);
-
-    ShaderPipeline *pipeline = NEW (ShaderPipeline);
-    RETURN_VALUE_IF (!pipeline, Null, ERR_OUT_OF_MEMORY);
-
-    VkDevice device = vk.device.logical;
+    // {
+    //     VkDescriptorBufferInfo buffer_info = {
+    //         .buffer = pipeline->uniform_buffer->buffer,
+    //         .range  = pipeline->uniform_buffer->size,
+    //         .offset = 0
+    //     };
+    //
+    //     VkWriteDescriptorSet write_descriptor_set = {
+    //         .sType            = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+    //         .pNext            = Null,
+    //         .dstSet           = pipeline->descriptor_set,
+    //         .dstBinding       = 0,
+    //         .dstArrayElement  = 0,
+    //         .descriptorCount  = 1,
+    //         .descriptorType   = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+    //         .pImageInfo       = Null,
+    //         .pBufferInfo      = &buffer_info,
+    //         .pTexelBufferView = Null
+    //     };
+    //
+    //     vkUpdateDescriptorSets (device, 1, &write_descriptor_set, 0, Null);
+    // }
 
     /* create a pipeline layout including provided shader resource binding */
     {
@@ -250,7 +194,7 @@ ShaderPipeline *
             .pNext                  = Null,
             .flags                  = 0,
             .setLayoutCount         = 1,
-            .pSetLayouts            = (VkDescriptorSetLayout[]) {srb->descriptor_set_layout},
+            .pSetLayouts            = (VkDescriptorSetLayout[]) {pipeline->descriptor_set_layout},
             .pushConstantRangeCount = 0,
             .pPushConstantRanges    = Null
         };
@@ -261,22 +205,22 @@ ShaderPipeline *
             Null,
             &pipeline->pipeline_layout
         );
+
         GOTO_HANDLER_IF (
             res != VK_SUCCESS,
-            PIPELINE_LAYOUT_FAILED,
+            INIT_FAILED,
             "Failed to create pipeline layout. RET = %d\n",
             res
         );
     }
 
     /* create pipeline */
-    VkShaderModule vert_shader = VK_NULL_HANDLE, frag_shader = VK_NULL_HANDLE;
     {
         vert_shader = load_shader (device, "bin/Shaders/triangle.vert.spv");
         frag_shader = load_shader (device, "bin/Shaders/triangle.frag.spv");
         GOTO_HANDLER_IF (
             !vert_shader || !frag_shader,
-            SHADER_LOAD_FAILED,
+            INIT_FAILED,
             "Failed to load vertex/fragment shaders\n"
         );
 
@@ -424,7 +368,7 @@ ShaderPipeline *
             .pColorBlendState    = &color_blend_state,
             .pDynamicState       = Null,
             .layout              = pipeline->pipeline_layout,
-            .renderPass          = surface->render_pass,
+            .renderPass          = render_pass->render_pass,
             .subpass             = 0,
             .basePipelineHandle  = VK_NULL_HANDLE,
             .basePipelineIndex   = 0
@@ -441,7 +385,7 @@ ShaderPipeline *
         );
         GOTO_HANDLER_IF (
             res != VK_SUCCESS,
-            PIPELINE_CREATE_FAILED,
+            INIT_FAILED,
             "Failed to create graphics pipelines. RET = %d\n",
             res
         );
@@ -453,44 +397,60 @@ ShaderPipeline *
 
     return pipeline;
 
-PIPELINE_CREATE_FAILED:
-    vkDestroyPipelineLayout (device, pipeline->pipeline_layout, Null);
-SHADER_LOAD_FAILED:
+INIT_FAILED:
+
     if (vert_shader) {
         vkDestroyShaderModule (device, vert_shader, Null);
     }
     if (frag_shader) {
         vkDestroyShaderModule (device, frag_shader, Null);
     }
-PIPELINE_LAYOUT_FAILED:
-    FREE (pipeline);
+
+    graphics_pipeline_deinit (pipeline);
+
     return Null;
 }
 
 /**
- * @b Destroy given ShaderPipeline object.
+ * @b Destroy given ShaderResourceBinding object.
  *
- * @param pipeline 
+ * @param srb 
  * @param device
  * */
-void shader_pipeline_destroy (ShaderPipeline *pipeline) {
-    RETURN_IF (!pipeline, ERR_INVALID_ARGUMENTS);
+GraphicsPipeline *graphics_pipeline_deinit (GraphicsPipeline *pipeline) {
+    RETURN_VALUE_IF (!pipeline, Null, ERR_INVALID_ARGUMENTS);
 
     VkDevice device = vk.device.logical;
 
     vkDeviceWaitIdle (device);
 
-    if (pipeline->pipeline_layout) {
-        vkDestroyPipelineLayout (device, pipeline->pipeline_layout, Null);
-        pipeline->pipeline_layout = VK_NULL_HANDLE;
-    }
+    // if (pipeline->uniform_buffer) {
+    //     device_buffer_destroy (pipeline->uniform_buffer, &vk.device);
+    //     pipeline->uniform_buffer = Null;
+    // }
 
     if (pipeline->pipeline) {
         vkDestroyPipeline (device, pipeline->pipeline, Null);
         pipeline->pipeline = VK_NULL_HANDLE;
     }
 
-    FREE (pipeline);
+    if (pipeline->pipeline_layout) {
+        vkDestroyPipelineLayout (device, pipeline->pipeline_layout, Null);
+        pipeline->pipeline_layout = VK_NULL_HANDLE;
+    }
+
+    if (pipeline->descriptor_pool) {
+        vkDestroyDescriptorPool (device, pipeline->descriptor_pool, Null);
+        pipeline->descriptor_pool = VK_NULL_HANDLE;
+        pipeline->descriptor_set  = VK_NULL_HANDLE;
+    }
+
+    if (pipeline->descriptor_set_layout) {
+        vkDestroyDescriptorSetLayout (device, pipeline->descriptor_set_layout, Null);
+        pipeline->descriptor_set_layout = VK_NULL_HANDLE;
+    }
+
+    return pipeline;
 }
 
 /**************************************************************************************************/

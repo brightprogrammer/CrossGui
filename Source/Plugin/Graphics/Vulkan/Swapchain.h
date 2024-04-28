@@ -52,6 +52,7 @@
 
 /* vulkan include */
 #include <vulkan/vulkan.h>
+#include <vulkan/vulkan_core.h>
 
 /* NOTE:
  * From above it might look like it, but almost all functions are using the global
@@ -61,6 +62,8 @@
 /* some forward declarations */
 typedef struct XwWindow     XwWindow;
 typedef struct RenderTarget RenderTarget;
+typedef struct RenderPass   RenderPass;
+typedef struct Swapchain    Swapchain;
 
 /**
  * @b Swapchain images are treated as color attachments to @c RenderTarget objects.
@@ -68,8 +71,7 @@ typedef struct RenderTarget RenderTarget;
  * This struct tries to imitate @c DeviceImage as much as possible for consistency of code.
  * Some things that we don't really require in these images, we don't store. One such
  * example is @c VkDeviceMemory handle, because swapchain is the allocator of these images,
- * and not the plugin code. Another example is image dimensions as neither @c RenderTarget,
- * nor image view require image dimensions.
+ * and not the plugin code. 
  *
  * @sa RenderTarget
  * @sa DeviceImage
@@ -77,30 +79,51 @@ typedef struct RenderTarget RenderTarget;
 typedef struct SwapchainImage {
     VkImage     image; /**< @b Swapchain image handle retrieved from swapchain. */
     VkImageView view;  /**< @b Image view created for corresponding image. */
-
-    /**
-     * @b This is same in all images of a swapchain.
-     * The same value is also present in @c image_format variable inside parent swapchain.
-     * This might seem redundant but it makes creation of @c RenderTarget less verbose.
-     * */
-    VkFormat format;
 } SwapchainImage;
+
+/**
+ * @c RenderTarget objects attached with @c RenderPass objects will go in invalid state if
+ * after swapchain recreation, new @c RenderTarget objects are not created, by using new
+ * data from swapchain.
+ *
+ * Each @c RenderPass has it's own way of re-creating it's @c RenderTarget objects.
+ * This data will be used to store the handler, and the @c RenderPass object that wants to 
+ * handle reinit events from @c Swapchain.
+ *
+ * This design might give rise to use-after-free bugs, but if I keep the @c RenderPass objects 
+ * static and don't free them as long as the plugin is active, everything should work smoothly.
+ * This is the plan anyway, I'm not creating a genric graphics renderer, I just need a set
+ * rendering styles and pipelines, and that's it!
+ * */
+typedef Bool (*SwapchainReinitHandler) (Swapchain *swapchain, RenderPass *render_pass);
+typedef struct SwapchainReinitHandlerData {
+    SwapchainReinitHandler handler;
+    RenderPass            *render_pass;
+} SwapchainReinitHandlerData;
 
 /**
  * @b Wrapper over VkSwapchainKHR handle and closely related objects.
  * */
 typedef struct Swapchain {
-    VkSwapchainKHR  swapchain;    /**< @b Swapchain created for the window. */
+    VkSwapchainKHR swapchain;     /**< @b Swapchain created for the window. */
+
     VkExtent2D      image_extent; /**< @b Current swapchain image extent */
     VkFormat        image_format; /**< @b Format of image stored during swapchain creation. */
     Uint32          image_count;  /**< @b Number of images in swapchain. */
     SwapchainImage *images;       /**< @b Handle to images inside swapchain. */
+    DeviceImage     depth_image;  /**< @b Common depth image attachments to all render targets */
 
-    /** 
-     * @b Total number of render targets is same as number of swapchain images.
+    /**
+     * @c This matches the total number of RenderPass objects using color attachments from 
+     *    this swapchain.
+     *
+     * Upon swapchain recreation, the @c Swapchain code will go through each of these methods
+     * to inform the registered @c RenderPass objects that they need to take proper action
+     * for this event.
      * */
-    RenderTarget *render_targets;
-    DeviceImage   depth_image; /**< @b Common depth image attachments to all render targets */
+    SwapchainReinitHandlerData *reinit_handlers;
+    Size                        reinit_handler_count; /**< @b How many have we stored? */
+    Size                        reinit_handler_capacity; /**< @b How many can we store? */
 
     /**
      * @b Where all command buffers will be allocated from for each render target
@@ -112,5 +135,10 @@ typedef struct Swapchain {
 Swapchain *swapchain_init (Swapchain *swapchain, VkSurfaceKHR surface, XwWindow *win);
 Swapchain *swapchain_deinit (Swapchain *swapchain);
 Swapchain *swapchain_reinit (Swapchain *swapchain, VkSurfaceKHR surface, XwWindow *win);
+Swapchain *swapchain_register_reinit_handler (
+    Swapchain             *swapchain,
+    SwapchainReinitHandler handler,
+    RenderPass            *render_pass
+);
 
 #endif // ANVIE_SOURCE_CROSSGUI_PLUGIN_GRAPHICS_VULKAN_SWAPCHAIN_H

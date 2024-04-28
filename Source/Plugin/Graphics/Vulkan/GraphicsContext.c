@@ -33,6 +33,8 @@
 /* local includes */
 #include "GraphicsContext.h"
 
+#include "Anvie/Common.h"
+#include "RenderPass.h"
 #include "Vulkan.h"
 
 #include <Anvie/CrossWindow/Vulkan.h>
@@ -64,13 +66,18 @@ XuiGraphicsContext *graphics_context_create (XwWindow *xwin) {
     }
 
     /* create swapchain */
-    {
-        GOTO_HANDLER_IF (
-            !swapchain_init (&gctx->swapchain, gctx->surface, xwin),
-            GCTX_FAILED,
-            "Failed to create swapchain\n"
-        );
-    }
+    GOTO_HANDLER_IF (
+        !swapchain_init (&gctx->swapchain, gctx->surface, xwin),
+        GCTX_FAILED,
+        "Failed to create swapchain\n"
+    );
+
+    /* create default renderpass */
+    GOTO_HANDLER_IF (
+        !render_pass_init_default (&gctx->default_render_pass, &gctx->swapchain),
+        GCTX_FAILED,
+        "Failed to create default renderpass for new graphics context\n"
+    );
 
     return gctx;
 
@@ -86,6 +93,10 @@ GCTX_FAILED:
  * */
 void graphics_context_destroy (XuiGraphicsContext *gctx) {
     RETURN_IF (!gctx, ERR_INVALID_ARGUMENTS);
+
+    if (gctx->default_render_pass.render_pass) {
+        render_pass_deinit (&gctx->default_render_pass);
+    }
 
     if (gctx->swapchain.swapchain) {
         swapchain_deinit (&gctx->swapchain);
