@@ -95,7 +95,7 @@ typedef struct SwapchainImage {
  * This is the plan anyway, I'm not creating a genric graphics renderer, I just need a set
  * rendering styles and pipelines, and that's it!
  * */
-typedef Bool (*SwapchainReinitHandler) (Swapchain *swapchain, RenderPass *render_pass);
+typedef Bool (*SwapchainReinitHandler) (RenderPass *render_pass, Swapchain *swapchain);
 typedef struct SwapchainReinitHandlerData {
     SwapchainReinitHandler handler;
     RenderPass            *render_pass;
@@ -122,7 +122,7 @@ typedef struct Swapchain {
      * for this event.
      * */
     SwapchainReinitHandlerData *reinit_handlers;
-    Size                        reinit_handler_count; /**< @b How many have we stored? */
+    Size                        reinit_handler_count;    /**< @b How many have we stored? */
     Size                        reinit_handler_capacity; /**< @b How many can we store? */
 
     /**
@@ -135,10 +135,10 @@ typedef struct Swapchain {
 Swapchain *swapchain_init (Swapchain *swapchain, VkSurfaceKHR surface, XwWindow *win);
 Swapchain *swapchain_deinit (Swapchain *swapchain);
 Swapchain *swapchain_reinit (Swapchain *swapchain, VkSurfaceKHR surface, XwWindow *win);
-Swapchain *swapchain_register_reinit_handler (
-    Swapchain             *swapchain,
-    SwapchainReinitHandler handler,
-    RenderPass            *render_pass
+Bool       swapchain_register_reinit_handler (
+          Swapchain             *swapchain,
+          SwapchainReinitHandler handler,
+          RenderPass            *render_pass
 );
 
 #endif // ANVIE_SOURCE_CROSSGUI_PLUGIN_GRAPHICS_VULKAN_SWAPCHAIN_H

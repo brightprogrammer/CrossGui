@@ -124,7 +124,7 @@ Bool graphics_context_resize (XuiGraphicsContext *gctx, XwWindow *xwin) {
     RETURN_VALUE_IF (!gctx || !xwin, False, ERR_INVALID_ARGUMENTS);
 
     RETURN_VALUE_IF (
-        !swapchain_recreate (&gctx->swapchain, gctx->surface, xwin),
+        !swapchain_reinit (&gctx->swapchain, gctx->surface, xwin),
         False,
         "Failed to resize graphics context.\n"
     );

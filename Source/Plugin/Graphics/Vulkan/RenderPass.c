@@ -43,7 +43,23 @@
 #include "Swapchain.h"
 #include "Vulkan.h"
 
-RenderPass *render_pass_create_render_targets (RenderPass *render_pass, Swapchain *swapchain);
+/**************************************************************************************************/
+/********************************** PRIVATE METHODS DECLARATIONS **********************************/
+/**************************************************************************************************/
+
+static inline RenderPass *
+    default_render_pass_create_render_targets (RenderPass *render_pass, Swapchain *swapchain);
+
+static inline RenderPass *render_pass_destroy_render_targets (RenderPass *render_pass);
+
+static inline Bool default_render_pass_swapchain_reinit_event_handler (
+    RenderPass *render_pass,
+    Swapchain  *swapchain
+);
+
+/**************************************************************************************************/
+/***************************************** PUBLIC METHODS *****************************************/
+/**************************************************************************************************/
 
 /**
  * @b Initialize default render pass.
@@ -124,7 +140,7 @@ RenderPass *render_pass_init_default (RenderPass *render_pass, Swapchain *swapch
 
     /* create render targets */
     GOTO_HANDLER_IF (
-        !render_pass_create_render_targets (render_pass, swapchain),
+        !default_render_pass_create_render_targets (render_pass, swapchain),
         INIT_FAILED,
         "Failed to create render targets for render pass\n"
     );
@@ -138,6 +154,17 @@ RenderPass *render_pass_init_default (RenderPass *render_pass, Swapchain *swapch
         ),
         INIT_FAILED,
         "Failed to create default graphics pipeline for default renderpass."
+    );
+
+    /* finally register this renderpass to handle swapchain reinit events */
+    GOTO_HANDLER_IF (
+        !swapchain_register_reinit_handler (
+            swapchain,
+            default_render_pass_swapchain_reinit_event_handler,
+            render_pass
+        ),
+        INIT_FAILED,
+        "Failed to register render pass to swapchain for reinit event handling\n"
     );
 
     return render_pass;
@@ -165,35 +192,18 @@ RenderPass *render_pass_deinit (RenderPass *render_pass) {
 
     VkDevice device = vk.device.logical;
 
-    /* destroy render target member objects */
-    if (render_pass->render_targets) {
-        for (Size s = 0; s < render_pass->render_target_count; s++) {
-            RenderTarget *rt = render_pass->render_targets + s;
+    render_pass_destroy_render_targets (render_pass);
 
-            if (rt->framebuffer) {
-                vkDestroyFramebuffer (device, rt->framebuffer, Null);
-                render_target_sync_objects_deinit (&rt->sync);
-            }
-        }
-
-        memset (
-            render_pass->render_targets,
-            0,
-            sizeof (RenderTarget) * render_pass->render_target_count
-        );
-
-        FREE (render_pass->render_targets);
-    }
-
-    /* destroy command pool, this will automatically free all command buffers */
-    if (render_pass->command_pool) {
-        vkDestroyCommandPool (device, render_pass->command_pool, Null);
-    }
+    vkDestroyRenderPass (device, render_pass->render_pass, Null);
 
     memset (render_pass, 0, sizeof (RenderPass));
 
     return render_pass;
 }
+
+/**************************************************************************************************/
+/**************************************** PRIVATE METHODS *****************************************/
+/**************************************************************************************************/
 
 /**
  * @b Create render targets for this renderpass, and store them back into the @c RenderPass object.
@@ -204,7 +214,8 @@ RenderPass *render_pass_deinit (RenderPass *render_pass) {
  * @return @c render_pass on success.
  * @return @c Null otherwise.
  * */
-RenderPass *render_pass_create_render_targets (RenderPass *render_pass, Swapchain *swapchain) {
+static inline RenderPass *
+    default_render_pass_create_render_targets (RenderPass *render_pass, Swapchain *swapchain) {
     RETURN_VALUE_IF (!render_pass || !swapchain, Null, ERR_INVALID_ARGUMENTS);
 
     VkDevice device = vk.device.logical;
@@ -263,7 +274,6 @@ RenderPass *render_pass_create_render_targets (RenderPass *render_pass, Swapchai
         }
     }
 
-
     /* create framebuffers */
     {
         VkFramebufferCreateInfo framebuffer_create_info = {
@@ -295,7 +305,6 @@ RenderPass *render_pass_create_render_targets (RenderPass *render_pass, Swapchai
         }
     }
 
-
     /* create sync objects and store command buffer and framebuffer handles */
     for (Size s = 0; s < render_pass->render_target_count; s++) {
         RenderTarget *rt = render_pass->render_targets + s;
@@ -308,4 +317,62 @@ RenderPass *render_pass_create_render_targets (RenderPass *render_pass, Swapchai
     }
 
     return render_pass;
+}
+
+/**
+ * @b Destroy @c RenderPass @c RenderTarget objects.
+ * */
+static inline RenderPass *render_pass_destroy_render_targets (RenderPass *render_pass) {
+    RETURN_VALUE_IF (!render_pass, Null, ERR_INVALID_ARGUMENTS);
+
+    VkDevice device = vk.device.logical;
+
+    /* destroy render target member objects */
+    if (render_pass->render_targets) {
+        for (Size s = 0; s < render_pass->render_target_count; s++) {
+            RenderTarget *rt = render_pass->render_targets + s;
+
+            if (rt->framebuffer) {
+                vkDestroyFramebuffer (device, rt->framebuffer, Null);
+                render_target_sync_objects_deinit (&rt->sync);
+            }
+        }
+
+        memset (
+            render_pass->render_targets,
+            0,
+            sizeof (RenderTarget) * render_pass->render_target_count
+        );
+
+        FREE (render_pass->render_targets);
+    }
+
+    /* destroy command pool, this will automatically free all command buffers */
+    if (render_pass->command_pool) {
+        vkDestroyCommandPool (device, render_pass->command_pool, Null);
+    }
+
+    return render_pass;
+}
+
+/**
+ * @b Event handler for default @c RenderPass to handle @c Swapchain reinit events.
+ *
+ * @param render_pass @c RenderPass object to recreate it's @c RenderTarget objects.
+ * @param swapchain @c Swapchain object used to create corresponding @c RenderPass.
+ * */
+static inline Bool default_render_pass_swapchain_reinit_event_handler (
+    RenderPass *render_pass,
+    Swapchain  *swapchain
+) {
+    RETURN_VALUE_IF (!render_pass || !swapchain, False, ERR_INVALID_ARGUMENTS);
+
+    RETURN_VALUE_IF (
+        !render_pass_destroy_render_targets (render_pass) ||
+            !default_render_pass_create_render_targets (render_pass, swapchain),
+        False,
+        "Failed to recreate swapchain render targets\n"
+    );
+
+    return True;
 }

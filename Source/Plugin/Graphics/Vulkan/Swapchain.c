@@ -40,6 +40,9 @@
 #include <Anvie/CrossWindow/Vulkan.h>
 #include <Anvie/CrossWindow/Window.h>
 
+/* crossgui/utils */
+#include <Anvie/CrossGui/Utils/Vector.h>
+
 /* local includes */
 #include "RenderTarget.h"
 #include "Swapchain.h"
@@ -47,6 +50,8 @@
 
 /* libc includes */
 #include <memory.h>
+
+NEW_VECTOR_TYPE (SwapchainReinitHandlerData, reinit_handler);
 
 /**
  * @b Initialize given Swapchain object.
@@ -267,6 +272,12 @@ Swapchain *swapchain_init (Swapchain *swapchain, VkSurfaceKHR surface, XwWindow 
         }
     }
 
+    /* create reinit handler data vector with initially 4 entries */
+    swapchain->reinit_handlers = reinit_handler_vector_create (
+        4,                                  /* initial count */
+        &swapchain->reinit_handler_capacity /* get capacity */
+    );
+
     return swapchain;
 
 INIT_FAILED:
@@ -289,50 +300,44 @@ Swapchain *swapchain_deinit (Swapchain *swapchain) {
     VkDevice device = vk.device.logical;
 
     /* if device was ever created then start destroying possibly created objects */
-    if (device) {
-        vkDeviceWaitIdle (device);
+    vkDeviceWaitIdle (device);
 
-        /* destroy render targets */
-        if (swapchain->render_targets) {
-            for (Size s = 0; s < swapchain->image_count; s++) {
-                render_target_deinit (swapchain->render_targets + s);
-            }
-
-            /* make all entries invalid */
-            memset (swapchain->render_targets, 0, sizeof (RenderTarget) * swapchain->image_count);
-        }
-
-        /* destroy image views in swapchain image */
-        if (swapchain->images) {
-            for (Size s = 0; s < swapchain->image_count; s++) {
-                if (swapchain->images[s].view) {
-                    vkDestroyImageView (device, swapchain->images[s].view, Null);
-                }
-            }
-
-            /* make all entries invalid */
-            memset (swapchain->images, 0, sizeof (SwapchainImage) * swapchain->image_count);
-        }
-
-        if (swapchain->cmd_pool) {
-            vkDestroyCommandPool (device, swapchain->cmd_pool, Null);
-        }
-
-        if (swapchain->swapchain) {
-            vkDestroySwapchainKHR (device, swapchain->swapchain, Null);
-        }
+    /* destroy depth image for this swapchain */
+    if (swapchain->depth_image.image) {
+        device_image_deinit (&swapchain->depth_image);
     }
 
-    /* all memory deallocations out of if statements, having their own checks */
-    if (swapchain->render_targets) {
-        FREE (swapchain->render_targets);
-        swapchain->render_targets = Null;
-    }
-
+    /* destroy image views in swapchain image */
     if (swapchain->images) {
+        for (Size s = 0; s < swapchain->image_count; s++) {
+            if (swapchain->images[s].view) {
+                vkDestroyImageView (device, swapchain->images[s].view, Null);
+            }
+        }
+
+        /* make all entries invalid */
+        memset (swapchain->images, 0, sizeof (SwapchainImage) * swapchain->image_count);
         FREE (swapchain->images);
-        swapchain->images = Null;
     }
+
+    /* destroy swapchain */
+    if (swapchain->swapchain) {
+        vkDestroySwapchainKHR (device, swapchain->swapchain, Null);
+    }
+
+    /* free event hander data */
+    if (swapchain->reinit_handlers) {
+        memset (
+            swapchain->reinit_handlers,
+            0,
+            sizeof (SwapchainReinitHandlerData) * swapchain->reinit_handler_count
+        );
+
+        reinit_handler_vector_destroy (swapchain->reinit_handlers);
+    }
+
+    /* set all fields to invalid state */
+    memset (swapchain, 0, sizeof (Swapchain));
 
     return swapchain;
 }
@@ -354,14 +359,12 @@ Swapchain *swapchain_reinit (Swapchain *swapchain, VkSurfaceKHR surface, XwWindo
     if (device) {
         vkDeviceWaitIdle (device);
 
-        /* destroy render targets */
-        if (swapchain->render_targets) {
-            for (Size s = 0; s < swapchain->image_count; s++) {
-                render_target_deinit (swapchain->render_targets + s);
+        /* Ask RenderPass objects to reinit their RenderTargets */
+        if (swapchain->reinit_handlers) {
+            for (Size s = 0; s < swapchain->reinit_handler_count; s++) {
+                SwapchainReinitHandlerData *handler = swapchain->reinit_handlers + s;
+                handler->handler (handler->render_pass, swapchain);
             }
-
-            /* make all entries invalid */
-            memset (swapchain->render_targets, 0, sizeof (RenderTarget) * swapchain->image_count);
         }
 
         /* destroy image views in swapchain image */
@@ -393,4 +396,37 @@ Swapchain *swapchain_reinit (Swapchain *swapchain, VkSurfaceKHR surface, XwWindo
     }
 
     return swapchain;
+}
+
+/**
+ * @b Called by @c RenderPass objects created using this @c Swapchain to handle swapchain reinit 
+ *    events.
+ * */
+Bool swapchain_register_reinit_handler (
+    Swapchain             *swapchain,
+    SwapchainReinitHandler handler,
+    RenderPass            *render_pass
+) {
+    RETURN_VALUE_IF (!swapchain || !handler || !render_pass, False, ERR_INVALID_ARGUMENTS);
+
+    /* resize/create array if required */
+    if (swapchain->reinit_handler_count >= swapchain->reinit_handler_capacity) {
+        RETURN_VALUE_IF (
+            !reinit_handler_vector_resize (
+                swapchain->reinit_handlers,          /* vector data */
+                swapchain->reinit_handler_count,     /* current count */
+                swapchain->reinit_handler_count + 1, /* new count I want */
+                swapchain->reinit_handler_capacity,  /* current capacity */
+                &swapchain->reinit_handler_capacity  /* get new capacity */
+            ),
+            False,
+            "Failed to resize swapchain-reinit-event handler vector\n"
+        );
+    }
+
+    /* insert handler data */
+    swapchain->reinit_handlers[swapchain->reinit_handler_count++] =
+        (SwapchainReinitHandlerData) {.handler = handler, .render_pass = render_pass};
+
+    return True;
 }

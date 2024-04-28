@@ -64,14 +64,14 @@ typedef struct DeviceBuffer {
     VkDeviceMemory memory; /**< @b Buffer allocated memory handle. */
 } DeviceBuffer;
 
-DeviceBuffer *device_buffer_create (
-    Device            *device,
+DeviceBuffer *device_buffer_init (
+    DeviceBuffer      *buffer,
     VkBufferUsageFlags usage,
     Size               size,
     Uint32             queue_family_inddex
 );
-void          device_buffer_destroy (DeviceBuffer *dbuf, Device *device);
-DeviceBuffer *device_buffer_memcpy (DeviceBuffer *dbuf, Device *device, void *data, Size size);
+DeviceBuffer *device_buffer_deinit (DeviceBuffer *buffer);
+DeviceBuffer *device_buffer_memcpy (DeviceBuffer *buffer, void *data, Size size);
 
 /**
  * @b Device image data.
@@ -84,14 +84,16 @@ typedef struct DeviceImage {
     VkExtent2D     extent; /**< @b Image dimensions. */
 } DeviceImage;
 
-DeviceImage *device_image_create (
-    Device           *device,
+/* TODO: Implement these */
+
+DeviceImage *device_image_init (
+    DeviceImage      *image,
     VkImageUsageFlags usage,
     Uint32            width,
     Uint32            height,
     VkFormat          format,
     Uint32            queue_family_inddex
 );
-void device_image_destroy (DeviceImage *dimg, Device *device);
+DeviceImage *device_image_deinit (DeviceImage *image);
 
 #endif // ANVIE_SOURCE_CROSSGUI_PLUGIN_GRAPHICS_VULKAN_H
