@@ -50,6 +50,7 @@
 
 /* libc includes */
 #include <memory.h>
+#include <vulkan/vulkan_core.h>
 
 NEW_VECTOR_TYPE (SwapchainReinitHandlerData, reinit_handler);
 
@@ -272,10 +273,30 @@ Swapchain *swapchain_init (Swapchain *swapchain, VkSurfaceKHR surface, XwWindow 
         }
     }
 
+    /* create depth image for this swapchain */
+    GOTO_HANDLER_IF (
+        !device_image_init (
+            &swapchain->depth_image,
+            VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+            swapchain->image_extent.width,
+            swapchain->image_extent.height,
+            VK_FORMAT_D32_SFLOAT,
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+            vk.device.graphics_queue.family_index
+        ),
+        INIT_FAILED,
+        "Failed to create swapchain depth image\n"
+    );
+
     /* create reinit handler data vector with initially 4 entries */
     swapchain->reinit_handlers = reinit_handler_vector_create (
         4,                                  /* initial count */
         &swapchain->reinit_handler_capacity /* get capacity */
+    );
+    GOTO_HANDLER_IF (
+        !swapchain->reinit_handlers,
+        INIT_FAILED,
+        "Failed to create vector to hold swapchain-reinit-event handlers\n"
     );
 
     return swapchain;

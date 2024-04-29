@@ -52,8 +52,8 @@ typedef struct Device {
     DeviceQueue                      graphics_queue;
 } Device;
 
-Bool device_init (Device *device);
-Bool device_deinit (Device *device);
+Bool device_init();
+Bool device_deinit();
 
 /**
  * @c Device buffer data.
@@ -65,10 +65,11 @@ typedef struct DeviceBuffer {
 } DeviceBuffer;
 
 DeviceBuffer *device_buffer_init (
-    DeviceBuffer      *buffer,
-    VkBufferUsageFlags usage,
-    Size               size,
-    Uint32             queue_family_inddex
+    DeviceBuffer         *buffer,
+    VkBufferUsageFlags    usage,
+    Size                  size,
+    VkMemoryPropertyFlags mem_property,
+    Uint32                queue_family_inddex
 );
 DeviceBuffer *device_buffer_deinit (DeviceBuffer *buffer);
 DeviceBuffer *device_buffer_memcpy (DeviceBuffer *buffer, void *data, Size size);
@@ -84,15 +85,14 @@ typedef struct DeviceImage {
     VkExtent2D     extent; /**< @b Image dimensions. */
 } DeviceImage;
 
-/* TODO: Implement these */
-
 DeviceImage *device_image_init (
-    DeviceImage      *image,
-    VkImageUsageFlags usage,
-    Uint32            width,
-    Uint32            height,
-    VkFormat          format,
-    Uint32            queue_family_inddex
+    DeviceImage          *image,
+    VkImageUsageFlags     usage,
+    Uint32                width,
+    Uint32                height,
+    VkFormat              format,
+    VkMemoryPropertyFlags mem_property,
+    Uint32                queue_family_inddex
 );
 DeviceImage *device_image_deinit (DeviceImage *image);
 

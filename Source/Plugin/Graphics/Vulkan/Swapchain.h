@@ -71,7 +71,7 @@ typedef struct Swapchain    Swapchain;
  * This struct tries to imitate @c DeviceImage as much as possible for consistency of code.
  * Some things that we don't really require in these images, we don't store. One such
  * example is @c VkDeviceMemory handle, because swapchain is the allocator of these images,
- * and not the plugin code. 
+ * and not the plugin code. Another example is Swapchain image size (extent, dimension).
  *
  * @sa RenderTarget
  * @sa DeviceImage
@@ -139,6 +139,6 @@ Bool       swapchain_register_reinit_handler (
           Swapchain             *swapchain,
           SwapchainReinitHandler handler,
           RenderPass            *render_pass
-);
+      );
 
 #endif // ANVIE_SOURCE_CROSSGUI_PLUGIN_GRAPHICS_VULKAN_SWAPCHAIN_H

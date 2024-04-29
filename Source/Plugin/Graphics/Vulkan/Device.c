@@ -30,40 +30,44 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * */
 
+#include <Anvie/Common.h>
+
 /* local includes */
 #include "Device.h"
 #include "Vulkan.h"
 
 /* libc includes */
 #include <memory.h>
+#include <vulkan/vulkan_core.h>
 
 /**************************************************************************************************/
 /******************************** DEVICE PUBLIC METHOD DEFINITIONS ********************************/
 /**************************************************************************************************/
 
 /**
- * @b Initialize device inside given @c Device object.
+ * @b Initialize device inside global Vulkan state @c Device object.
  *
  * @param device @c Device object to be initialized.
  *
  * @return @c device on success.
  * @return @c Null otherwise.
  * */
-Bool device_init (Device *device) {
-    RETURN_VALUE_IF (!device, False, ERR_INVALID_ARGUMENTS);
+Bool device_init() {
+    /* selecting the first available gpu for now, will apply something complex probably never! */
+    vk.device.physical = vk.gpus[0];
+
+    /* get selected gpu handle */
+    VkPhysicalDevice gpu = vk.device.physical;
 
     /* select gpu, get memory properties, get graphics queue family index */
     {
-        /* selecting the first available gpu for now, will apply something complex probably never! */
-        device->gpu = vk.gpus[0];
-
         /* get queue family indices */
         Int32        family_index = -1;
         VkQueueFlags queue_flags  = VK_QUEUE_GRAPHICS_BIT;
         {
             /* get queue family count */
             Uint32 queue_family_count = 0;
-            vkGetPhysicalDeviceQueueFamilyProperties (device->gpu, &queue_family_count, Null);
+            vkGetPhysicalDeviceQueueFamilyProperties (gpu, &queue_family_count, Null);
             RETURN_VALUE_IF (
                 !queue_family_count,
                 False,
@@ -73,7 +77,7 @@ Bool device_init (Device *device) {
             /* get queue family properties */
             VkQueueFamilyProperties queue_family_properties[queue_family_count];
             vkGetPhysicalDeviceQueueFamilyProperties (
-                device->gpu,
+                gpu,
                 &queue_family_count,
                 queue_family_properties
             );
@@ -94,9 +98,9 @@ Bool device_init (Device *device) {
             queue_flags
         );
 
-        device->graphics_queue.family_index = family_index;
+        vk.device.graphics_queue.family_index = family_index;
 
-        vkGetPhysicalDeviceMemoryProperties (device->gpu, &device->gpu_mem_properties);
+        vkGetPhysicalDeviceMemoryProperties (gpu, &vk.device.gpu_mem_properties);
     }
 
     /* create device */
@@ -107,7 +111,7 @@ Bool device_init (Device *device) {
             .sType            = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
             .pNext            = Null,
             .flags            = 0,
-            .queueFamilyIndex = device->graphics_queue.family_index,
+            .queueFamilyIndex = vk.device.graphics_queue.family_index,
             .queueCount       = 1,
             .pQueuePriorities = &queue_priorities
         };
@@ -129,8 +133,7 @@ Bool device_init (Device *device) {
         };
 
         /* create device */
-        VkResult res = VK_SUCCESS;
-        res          = vkCreateDevice (device->gpu, &device_create_info, Null, &device->device);
+        VkResult res = vkCreateDevice (gpu, &device_create_info, Null, &vk.device.logical);
         RETURN_VALUE_IF (
             res != VK_SUCCESS,
             False,
@@ -140,14 +143,12 @@ Bool device_init (Device *device) {
     }
 
     /* fetch device queue handle */
-    {
-        vkGetDeviceQueue (
-            device->device,
-            device->graphics_queue.family_index,
-            0,
-            &device->graphics_queue.handle
-        );
-    }
+    vkGetDeviceQueue (
+        vk.device.logical,
+        vk.device.graphics_queue.family_index,
+        0,
+        &vk.device.graphics_queue.handle
+    );
 
     return True;
 }
@@ -160,12 +161,12 @@ Bool device_init (Device *device) {
  * @return @c device on success.
  * @return @c Null otherwise.
  * */
-Bool device_deinit (Device *device) {
-    RETURN_VALUE_IF (!device, False, ERR_INVALID_ARGUMENTS);
+Bool device_deinit() {
+    VkDevice device = vk.device.logical;
 
-    if (device->device) {
-        vkDeviceWaitIdle (device->device);
-        vkDestroyDevice (device->device, Null);
+    if (device) {
+        vkDeviceWaitIdle (device);
+        vkDestroyDevice (device, Null);
     }
 
     memset (device, 0, sizeof (Device));
@@ -183,25 +184,24 @@ Bool device_deinit (Device *device) {
  * @param device Device to allocate memory on.
  * @param usage How will this buffer object be used.
  * @param size Number of bytes to allocate.
+ * @param mem_property Bitmask of @c VkMemoryPropertyFlagBits representing designed memory properties.
  * @param queue_family_index Index of queue family on which this buffer will be EXCLUSIVELY used.
  *
  * @return @c DeviceBuffer on success.
  * @return @c 0 otherwise.
  * */
-DeviceBuffer *device_buffer_create (
-    Device            *device,
-    VkBufferUsageFlags usage,
-    Size               size,
-    Uint32             queue_family_index
+DeviceBuffer *device_buffer_init (
+    DeviceBuffer         *buffer,
+    VkBufferUsageFlags    usage,
+    Size                  size,
+    VkMemoryPropertyFlags mem_property,
+    Uint32                queue_family_index
 ) {
-    RETURN_VALUE_IF (!device || !size, Null, ERR_INVALID_ARGUMENTS);
+    RETURN_VALUE_IF (!buffer || !size, Null, ERR_INVALID_ARGUMENTS);
 
-    /* create space for device buffer */
-    DeviceBuffer *dbuf = NEW (DeviceBuffer);
-    RETURN_VALUE_IF (!dbuf, Null, ERR_OUT_OF_MEMORY);
+    VkDevice device = vk.device.logical;
 
-    /* create vertex buffer */
-    VkBuffer vbuffer = VK_NULL_HANDLE;
+    /* create buffer */
     {
         VkBufferCreateInfo buffer_create_info = {
             .sType                 = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
@@ -214,40 +214,34 @@ DeviceBuffer *device_buffer_create (
             .pQueueFamilyIndices   = (Uint32[]) {queue_family_index}
         };
 
-        VkResult res = vkCreateBuffer (device->device, &buffer_create_info, Null, &vbuffer);
-        GOTO_HANDLER_IF (res != VK_SUCCESS, BUFFER_FAILED, "Failed to create buffer object");
+        VkResult res = vkCreateBuffer (device, &buffer_create_info, Null, &buffer->buffer);
+        RETURN_VALUE_IF (res != VK_SUCCESS, Null, "Failed to create buffer object");
     }
 
-    /* find required memory type */
-    Size                  required_size     = 0;
-    Uint32                memory_type_index = 0;
-    VkMemoryPropertyFlags memory_property_flags =
-        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-    {
-        VkMemoryRequirements memory_requirements;
-        vkGetBufferMemoryRequirements (device->device, vbuffer, &memory_requirements);
-
-        for (Uint32 i = 0; i < device->gpu_mem_properties.memoryTypeCount; i++) {
-            /* if memory type bit is flagged, and property flags match then set that as memory type */
-            if ((memory_requirements.memoryTypeBits & (1 << i)) &&
-                ((device->gpu_mem_properties.memoryTypes[i].propertyFlags & memory_property_flags
-                 ) == memory_property_flags)) {
-                memory_type_index = i;
-            }
-        }
-
-        GOTO_HANDLER_IF (
-            !memory_type_index,
-            MEMORY_TYPE_NOT_FOUND,
-            "Required memory type not found!\n"
-        );
-
-        required_size = memory_requirements.size;
-    }
 
     /* allocate memory for device buffer */
-    VkDeviceMemory vmemory = VK_NULL_HANDLE;
     {
+        /* find required memory type index and allocation size */
+        Size   required_size     = 0;
+        Uint32 memory_type_index = 0;
+        {
+            VkMemoryRequirements memory_requirements;
+            vkGetBufferMemoryRequirements (device, buffer->buffer, &memory_requirements);
+
+            for (Uint32 i = 0; i < vk.device.gpu_mem_properties.memoryTypeCount; i++) {
+                /* if memory type bit is flagged, and property flags match then set that as memory type */
+                if ((memory_requirements.memoryTypeBits & (1 << i)) &&
+                    ((vk.device.gpu_mem_properties.memoryTypes[i].propertyFlags & mem_property) ==
+                     mem_property)) {
+                    memory_type_index = i;
+                }
+            }
+
+            GOTO_HANDLER_IF (!memory_type_index, INIT_FAILED, "Required memory type not found!\n");
+
+            required_size = memory_requirements.size;
+        }
+
         VkMemoryAllocateInfo allocate_info = {
             .sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
             .pNext           = Null,
@@ -255,48 +249,51 @@ DeviceBuffer *device_buffer_create (
             .memoryTypeIndex = memory_type_index
         };
 
-        VkResult res = vkAllocateMemory (device->device, &allocate_info, Null, &vmemory);
+        VkResult res = vkAllocateMemory (device, &allocate_info, Null, &buffer->memory);
         GOTO_HANDLER_IF (
             res != VK_SUCCESS,
-            MEMORY_ALLOC_FAILED,
+            INIT_FAILED,
             "Failed to allocate memory for new buffer\b"
         );
     }
 
     /* bind device buffer and device memory together to starting of memory (offset = 0) */
     Size offset = 0;
-    vkBindBufferMemory (device->device, vbuffer, vmemory, offset);
+    vkBindBufferMemory (device, buffer->buffer, buffer->memory, offset);
 
-    *dbuf = (DeviceBuffer) {.size = size, .buffer = vbuffer, .memory = vmemory};
+    return buffer;
 
-    return dbuf;
-
-MEMORY_TYPE_NOT_FOUND:
-MEMORY_ALLOC_FAILED:
-    vkDestroyBuffer (device->device, vbuffer, Null);
-BUFFER_FAILED:
-    FREE (dbuf);
+INIT_FAILED:
+    device_buffer_deinit (buffer);
     return Null;
 }
 
 /**
- * @b Destroy buffer object and free memory allocated on device.
+ * @b De-initialize @c DeviceBuffer object and free memory allocated on device.
  *
- * @param device 
- * @param device_buffer
+ * @param buffer
+ *
+ * @return @c buffer on succes.
+ * @return @c Null otherwise.
  * */
-void device_buffer_destroy (DeviceBuffer *dbuf, Device *device) {
-    RETURN_IF (!device || !dbuf, ERR_INVALID_ARGUMENTS);
+DeviceBuffer *device_buffer_deinit (DeviceBuffer *buffer) {
+    RETURN_VALUE_IF (!buffer, Null, ERR_INVALID_ARGUMENTS);
 
-    vkDeviceWaitIdle (device->device);
+    VkDevice device = vk.device.logical;
 
-    vkFreeMemory (device->device, dbuf->memory, Null);
-    dbuf->memory = VK_NULL_HANDLE;
+    vkDeviceWaitIdle (device);
 
-    vkDestroyBuffer (device->device, dbuf->buffer, Null);
-    dbuf->buffer = VK_NULL_HANDLE;
+    if (buffer->memory) {
+        vkFreeMemory (device, buffer->memory, Null);
+    }
 
-    FREE (dbuf);
+    if (buffer->buffer) {
+        vkDestroyBuffer (device, buffer->buffer, Null);
+    }
+
+    memset (buffer, 0, sizeof (DeviceBuffer));
+
+    return buffer;
 }
 
 /**
@@ -310,13 +307,184 @@ void device_buffer_destroy (DeviceBuffer *dbuf, Device *device) {
  * @return @c bo on success.
  * @return @c {0, 0} otherwise
  * */
-DeviceBuffer *device_buffer_memcpy (DeviceBuffer *dbuf, Device *device, void *data, Size size) {
-    RETURN_VALUE_IF (!dbuf || !device || !data || !size, Null, ERR_INVALID_ARGUMENTS);
+DeviceBuffer *device_buffer_memcpy (DeviceBuffer *buffer, void *data, Size size) {
+    RETURN_VALUE_IF (!buffer || !data || !size, Null, ERR_INVALID_ARGUMENTS);
+
+    VkDevice device = vk.device.logical;
 
     void *mapped_data = Null;
-    vkMapMemory (device->device, dbuf->memory, 0, size, 0, &mapped_data);
+    vkMapMemory (device, buffer->memory, 0, size, 0, &mapped_data);
     memcpy (mapped_data, data, size);
-    vkUnmapMemory (device->device, dbuf->memory);
+    vkUnmapMemory (device, buffer->memory);
 
-    return dbuf;
+    return buffer;
+}
+
+/**
+ * @b Initialize the given @c DeviceImage object.
+ *
+ * @param image Pointer to memory where @c DeviceImage object must be initialized.
+ * @param usage Image usage flags.
+ * @param width Image width.
+ * @param height Image height.
+ * @param format Image format (depending on image usage).
+ * @param mem_property Bitmask of @c VkMemoryPropertyFlagBits representing designed memory properties.
+ * @param queue_family_inddex Which queue family this image belongs to?
+ *
+ * @return @c image on success.
+ * @return @c Null otherwise.
+ * */
+DeviceImage *device_image_init (
+    DeviceImage          *image,
+    VkImageUsageFlags     usage,
+    Uint32                width,
+    Uint32                height,
+    VkFormat              format,
+    VkMemoryPropertyFlags mem_property,
+    Uint32                queue_family_inddex
+) {
+    RETURN_VALUE_IF (
+        !image || !width || !height || queue_family_inddex == (Uint32)-1,
+        Null,
+        ERR_INVALID_ARGUMENTS
+    );
+
+    VkDevice device = vk.device.logical;
+
+    /* create image */
+    {
+        VkImageCreateInfo image_create_info = {
+            .sType                 = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+            .pNext                 = Null,
+            .flags                 = 0,
+            .imageType             = VK_IMAGE_TYPE_2D,
+            .format                = format,
+            .extent                = (VkExtent3D) {width, height, 1},
+            .mipLevels             = 1,
+            .arrayLayers           = 1,
+            .samples               = VK_SAMPLE_COUNT_1_BIT,
+            .tiling                = VK_IMAGE_TILING_OPTIMAL,
+            .usage                 = usage,
+            .sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
+            .queueFamilyIndexCount = 1,
+            .pQueueFamilyIndices   = ((Uint32[]) {vk.device.graphics_queue.family_index}
+                              ),
+            .initialLayout         = VK_IMAGE_LAYOUT_UNDEFINED
+        };
+
+        VkResult res = vkCreateImage (device, &image_create_info, Null, &image->image);
+        RETURN_VALUE_IF (res != VK_SUCCESS, Null, "Failed to create device image. RET = %d\n", res);
+    }
+
+    /* find memory requirements and allocate memory for image */
+    {
+        /* find required memory type index and allocation size */
+        Size   required_size     = 0;
+        Uint32 memory_type_index = 0;
+        {
+            VkMemoryRequirements memory_requirements;
+            vkGetImageMemoryRequirements (device, image->image, &memory_requirements);
+
+            for (Uint32 i = 0; i < vk.device.gpu_mem_properties.memoryTypeCount; i++) {
+                /* if memory type bit is flagged, and property flags match then set that as memory type */
+                if ((memory_requirements.memoryTypeBits & (1 << i)) &&
+                    ((vk.device.gpu_mem_properties.memoryTypes[i].propertyFlags & mem_property) ==
+                     mem_property)) {
+                    memory_type_index = i;
+                }
+            }
+
+            GOTO_HANDLER_IF (!memory_type_index, INIT_FAILED, "Required memory type not found!\n");
+
+            required_size = memory_requirements.size;
+        }
+
+        VkMemoryAllocateInfo allocate_info = {
+            .sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+            .pNext           = Null,
+            .allocationSize  = required_size,
+            .memoryTypeIndex = memory_type_index
+        };
+
+        VkResult res = vkAllocateMemory (device, &allocate_info, Null, &image->memory);
+        GOTO_HANDLER_IF (
+            res != VK_SUCCESS,
+            INIT_FAILED,
+            "Failed to allocate memory for new buffer\b"
+        );
+    }
+
+    /* create image view */
+    {
+        VkImageViewCreateInfo image_view_create_info = {
+            .sType    = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+            .pNext    = Null,
+            .flags    = 0,
+            .image    = image->image,
+            .viewType = VK_IMAGE_VIEW_TYPE_2D,
+            .format   = format,
+            .components =
+                {
+                             .r = VK_COMPONENT_SWIZZLE_IDENTITY,
+                             .g = VK_COMPONENT_SWIZZLE_IDENTITY,
+                             .b = VK_COMPONENT_SWIZZLE_IDENTITY,
+                             .a = VK_COMPONENT_SWIZZLE_IDENTITY,
+                             },
+            .subresourceRange =
+                {.aspectMask     = format >= VK_FORMAT_D32_SFLOAT_S8_UINT ?
+                                       VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT :
+                                       VK_IMAGE_ASPECT_DEPTH_BIT, .layerCount     = 1,
+                             .baseArrayLayer = 0,
+                             .levelCount     = 1,
+                             .baseMipLevel   = 0
+
+                }
+        };
+
+        VkResult res = vkCreateImageView (device, &image_view_create_info, Null, &image->view);
+        GOTO_HANDLER_IF (
+            res != VK_SUCCESS,
+            INIT_FAILED,
+            "Failed to create iamge view for device image. RET = %d\n",
+            res
+        );
+    }
+
+    return image;
+
+INIT_FAILED:
+    device_image_deinit (image);
+    return Null;
+}
+
+/**
+ * @b De-initialize given @c DeviceImage object and free memory allocated on device.
+ *
+ * @param image
+ *
+ * @return @c image on success.
+ * @return @c Null otherwise.
+ * */
+DeviceImage *device_image_deinit (DeviceImage *image) {
+    RETURN_VALUE_IF (!image, Null, ERR_INVALID_ARGUMENTS);
+
+    VkDevice device = vk.device.logical;
+
+    vkDeviceWaitIdle (device);
+
+    if (image->view) {
+        vkDestroyImageView (device, image->view, Null);
+    }
+
+    if (image->memory) {
+        vkFreeMemory (device, image->memory, Null);
+    }
+
+    if (image->image) {
+        vkDestroyImage (device, image->image, Null);
+    }
+
+    memset (image, 0, sizeof (DeviceImage));
+
+    return image;
 }
