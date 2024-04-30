@@ -45,6 +45,7 @@
 /* local includes */
 #include "Device.h"
 #include "GraphicsContext.h"
+#include "Renderer.h"
 #include "Swapchain.h"
 #include "Vulkan.h"
 
@@ -148,11 +149,7 @@ static Bool init() {
     }
 
     /* initialize commonly shared device */
-    GOTO_HANDLER_IF (
-        !device_init (&vk.device),
-        INIT_FAILED,
-        "Failed to initialize logical device.\n"
-    );
+    GOTO_HANDLER_IF (!device_init(), INIT_FAILED, "Failed to initialize logical device.\n");
 
     return True;
 
@@ -164,7 +161,7 @@ INIT_FAILED:
 static Bool deinit() {
     /* deinit logical device if created */
     if (vk.device.logical) {
-        device_deinit (&vk.device);
+        device_deinit();
     }
 
     /* free allocated gpu array */
@@ -183,158 +180,6 @@ static Bool deinit() {
 
     return True;
 }
-
-static Bool
-    draw_2d (XuiGraphicsContext *gctx, XwWindow *xwin, Vertex2D *vertices, Size vertex_count) {
-    RETURN_VALUE_IF (!gctx || !xwin || !vertices || !vertex_count, False, ERR_INVALID_ARGUMENTS);
-
-    VkFence fences[] = {gctx->swapchain.render_fence};
-
-    /* wait for all gpu rendering to complete */
-    VkResult res = vkWaitForFences (vk.device.logical, ARRAY_SIZE (fences), fences, True, 1e9);
-    RETURN_VALUE_IF (
-        res != VK_SUCCESS,
-        False,
-        "Timeout (1s) while waiting for fences. RET = %d\n",
-        res
-    );
-
-    /* get next image index */
-    Uint32 next_image_index = -1;
-
-    res = vkAcquireNextImageKHR (
-        vk.device.logical,
-        gctx->surface.swapchain,
-        1e9,
-        gctx->surface.present_semaphore,
-        Null,
-        &next_image_index
-    );
-
-    if (res == VK_SUBOPTIMAL_KHR || res == VK_ERROR_OUT_OF_DATE_KHR) {
-        RETURN_VALUE_IF (
-            !surface_recreate_swapchain (&gctx->surface, xwin),
-            False,
-            "Failed to recreate swapchain\n"
-        );
-        return True;
-        res = VK_SUCCESS; /* to pass upcoming check */
-    }
-    RETURN_VALUE_IF (
-        res != VK_SUCCESS,
-        False,
-        "Failed to get next image index from swapchain. RET = %d\n",
-        res
-    );
-
-    /* need to reset fence before we use it again */
-    res = vkResetFences (vk.device.logical, ARRAY_SIZE (fences), fences);
-    RETURN_VALUE_IF (res != VK_SUCCESS, False, "Failed to reset fences. RET = %d\n", res);
-
-    /* reset command buffer and record draw commands again */
-    res = vkResetCommandBuffer (gctx->surface.cmd_buffer, 0);
-    RETURN_VALUE_IF (
-        res != VK_SUCCESS,
-        False,
-        "Failed to reset command buffer for recording new commands. RET = %d\n",
-        res
-    );
-
-    VkCommandBuffer          cmd            = gctx->surface.cmd_buffer;
-    VkCommandBufferBeginInfo cmd_begin_info = {
-        .sType            = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-        .pNext            = Null,
-        .flags            = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-        .pInheritanceInfo = Null
-    };
-
-    res = vkBeginCommandBuffer (cmd, &cmd_begin_info);
-    RETURN_VALUE_IF (
-        res != VK_SUCCESS,
-        False,
-        "Failed to begin command buffer recording. RET = %d\n",
-        res
-    );
-
-    VkClearValue clear_value = {.color = {{1, 0.6, 0.8, 1}}};
-
-    VkRenderPassBeginInfo render_pass_begin_info = {
-        .sType       = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-        .pNext       = Null,
-        .renderPass  = gctx->surface.render_pass,
-        .renderArea  = {.offset = {.x = 0, .y = 0}, .extent = gctx->surface.swapchain_image_extent},
-        .framebuffer = gctx->surface.framebuffers[next_image_index],
-        .clearValueCount = 1,
-        .pClearValues    = &clear_value
-    };
-
-    vkCmdBeginRenderPass (cmd, &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
-    vkCmdEndRenderPass (cmd);
-
-    res = vkEndCommandBuffer (cmd);
-    RETURN_VALUE_IF (
-        res != VK_SUCCESS,
-        False,
-        "Failed to end command buffer recording. RET = %d\n",
-        res
-    );
-
-    /* wait when rendered image is being presented */
-    VkPipelineStageFlags wait_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-
-    VkSubmitInfo submit_info = {
-        .sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-        .pNext                = Null,
-        .waitSemaphoreCount   = 1,
-        .pWaitSemaphores      = &gctx->surface.present_semaphore,
-        .pWaitDstStageMask    = &wait_stage,
-        .signalSemaphoreCount = 1,
-        .pSignalSemaphores    = &gctx->surface.render_semaphore,
-        .commandBufferCount   = 1,
-        .pCommandBuffers      = &cmd
-    };
-
-    res = vkQueueSubmit (
-        vk.device.graphics_queue.handle,
-        1,
-        &submit_info,
-        gctx->surface.render_fence
-    );
-    RETURN_VALUE_IF (
-        res != VK_SUCCESS,
-        False,
-        "Failed to submit command buffers for execution. RET = %d\n",
-        res
-    );
-
-    VkPresentInfoKHR present_info = {
-        .sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-        .pNext              = Null,
-        .swapchainCount     = 1,
-        .pSwapchains        = &gctx->surface.swapchain,
-        .waitSemaphoreCount = 1,
-        .pWaitSemaphores    = &gctx->surface.render_semaphore,
-        .pImageIndices      = &next_image_index
-    };
-
-    res = vkQueuePresentKHR (vk.device.graphics_queue.handle, &present_info);
-    if (res == VK_SUBOPTIMAL_KHR || res == VK_ERROR_OUT_OF_DATE_KHR) {
-        RETURN_VALUE_IF (
-            !surface_recreate_swapchain (&gctx->surface, xwin),
-            False,
-            "Failed to recreate swapchain\n"
-        );
-        res = VK_SUCCESS; /* so that next check does not fail */
-    }
-    RETURN_VALUE_IF (
-        res != VK_SUCCESS,
-        False,
-        "Failed to present rendered images to surface. RET = %d\n",
-        res
-    );
-    return True;
-}
-
 
 /* Describe callbacks in graphics plugin data */
 static XuiGraphicsPlugin vulkan_graphics_plugin_data = {

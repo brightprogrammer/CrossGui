@@ -54,20 +54,9 @@ XuiGraphicsContext *graphics_context_create (XwWindow *xwin) {
     XuiGraphicsContext *gctx = NEW (XuiGraphicsContext);
     RETURN_VALUE_IF (!gctx, Null, ERR_OUT_OF_MEMORY);
 
-    /* create vulkan surface */
-    {
-        VkResult res = xw_window_create_vulkan_surface (xwin, vk.instance, &gctx->surface);
-        GOTO_HANDLER_IF (
-            res != VK_SUCCESS,
-            GCTX_FAILED,
-            "Failed to create Vulkan surface. RET = %d\n",
-            res
-        );
-    }
-
     /* create swapchain */
     GOTO_HANDLER_IF (
-        !swapchain_init (&gctx->swapchain, gctx->surface, xwin),
+        !swapchain_init (&gctx->swapchain, xwin),
         GCTX_FAILED,
         "Failed to create swapchain\n"
     );
@@ -102,10 +91,6 @@ void graphics_context_destroy (XuiGraphicsContext *gctx) {
         swapchain_deinit (&gctx->swapchain);
     }
 
-    if (gctx->surface) {
-        vkDestroySurfaceKHR (vk.instance, gctx->surface, Null);
-    }
-
     FREE (gctx);
 }
 
@@ -124,7 +109,7 @@ Bool graphics_context_resize (XuiGraphicsContext *gctx, XwWindow *xwin) {
     RETURN_VALUE_IF (!gctx || !xwin, False, ERR_INVALID_ARGUMENTS);
 
     RETURN_VALUE_IF (
-        !swapchain_reinit (&gctx->swapchain, gctx->surface, xwin),
+        !swapchain_reinit (&gctx->swapchain, xwin),
         False,
         "Failed to resize graphics context.\n"
     );

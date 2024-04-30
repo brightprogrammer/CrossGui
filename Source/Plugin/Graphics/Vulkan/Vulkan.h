@@ -47,7 +47,6 @@ typedef struct Vulkan {
     VkPhysicalDevice *gpus;      /**< @b GPU handles */
     Uint32            gpu_count; /**< @b Total number of usable physical devices on host. */
     Device            device;    /**< @b Default device in use by the plugin. */
-    Renderer          renderer;  /**< @b Default renderer to be used with all surfaces */
 } Vulkan;
 
 /**

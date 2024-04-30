@@ -1,5 +1,20 @@
 # CrossGui Vulkan Graphics Plugin
 
+## [[**Wed, 1st May 2024**]]
+
+- Moved `VkSurfaceKHR` from `XuiGraphicsContext` to `Swapchain`. This resulted in
+  on less parameter in `swapchain_xxxx` calls.
+- Renamed `RenderTargetSyncObjects` to `SwapchainSyncObjects`, and moved from per
+  `RenderTarget` association to direct association with `Swapchain`. This is under
+  the assumption that only one sync object will be used at a time.
+- Added two methods :
+      - `swapchain_begin_frame` : To get next image index
+      - `swapchain_end_frame` : To submit recorded commands for rendering and presentation
+         to graphics queue.
+- Each `RenderTarget` now has it's own `VkCommandPool` object for allocation of it's
+  `VkCommandBuffer` objects. This decision is because of [this](https://docs.vulkan.org/samples/latest/samples/performance/command_buffer_usage/README.html#_resetting_the_command_pool)
+   suggestion. I also read a similar suggestion in vkguide.
+
 ## [[**Mon, 29th April 2024**]]
 
 Few more things added while refactoring in commits

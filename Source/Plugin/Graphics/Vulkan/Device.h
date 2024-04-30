@@ -91,6 +91,7 @@ DeviceImage *device_image_init (
     Uint32                width,
     Uint32                height,
     VkFormat              format,
+    VkImageAspectFlags aspect_mask,
     VkMemoryPropertyFlags mem_property,
     Uint32                queue_family_inddex
 );

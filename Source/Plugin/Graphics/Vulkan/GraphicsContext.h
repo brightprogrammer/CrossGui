@@ -34,13 +34,13 @@
 #define ANVIE_CROSSGUI_SOURCE_PLUGIN_GRAPHICS_VULKAN_GRAPHICS_CONTEXT_H
 
 /* local includes */
-#include "Swapchain.h"
 #include "RenderPass.h"
+#include "Swapchain.h"
 
 typedef struct XuiGraphicsContext {
     VkSurfaceKHR surface;
     Swapchain    swapchain;
-    RenderPass default_render_pass;
+    RenderPass   default_render_pass;
 } XuiGraphicsContext;
 
 XuiGraphicsContext *graphics_context_create (XwWindow *xwin);

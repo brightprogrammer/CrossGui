@@ -340,6 +340,7 @@ DeviceImage *device_image_init (
     Uint32                width,
     Uint32                height,
     VkFormat              format,
+    VkImageAspectFlags    aspect_mask,
     VkMemoryPropertyFlags mem_property,
     Uint32                queue_family_inddex
 ) {
@@ -431,13 +432,7 @@ DeviceImage *device_image_init (
                              .a = VK_COMPONENT_SWIZZLE_IDENTITY,
                              },
             .subresourceRange =
-                {.aspectMask     = format >= VK_FORMAT_D32_SFLOAT_S8_UINT ?
-                                       VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT :
-                                       VK_IMAGE_ASPECT_DEPTH_BIT, .layerCount     = 1,
-                             .baseArrayLayer = 0,
-                             .levelCount     = 1,
-                             .baseMipLevel   = 0
-
+                {.aspectMask = aspect_mask, .baseArrayLayer = 0, .levelCount = 1, .baseMipLevel = 0
                 }
         };
 

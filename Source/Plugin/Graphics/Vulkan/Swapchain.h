@@ -32,12 +32,14 @@
  * ----------------------------------------------------------------------------------------------------
  *
  * CHANGELOG :
+ * [01-05-2024] : brightprogrammer 
+ *      - Follow-up changelogs are updated in README.md in the same folder
  * [27-04-2024] : brightprogrammer
  *      - Renamed file from Surface.h to Swapchain.h
  *      - Removed everything from Surface object outside of it, and moved the VkSurfaceKHR handle 
  *        to XuiGraphicsContext object.
  *      - New objects created :
- *        - RenderTargetSyncObjects
+ *        - SwapchainSyncObjects
  *        - RendetTarget 
  *        - Swapchain
  * */
@@ -48,6 +50,7 @@
 #include <Anvie/Types.h>
 
 /* local includes */
+#include "Anvie/Common.h"
 #include "Device.h"
 
 /* vulkan include */
@@ -82,6 +85,30 @@ typedef struct SwapchainImage {
 } SwapchainImage;
 
 /**
+ * @b A set of required render target syncrhonization primitves.
+ *
+ * Instead of each @c RenderTarget object having a unique set of sync objects associated
+ * it, corresponding number of sync objects are owned by the related @c Swapchain object.
+ * This design is strongly under the assumption that the GPU can run only a single render pass,
+ * at any given moment. This assumption is under the assumption that a single swapchain 
+ * can present only one single image at a time. This assumption is under the assumption
+ * that the swapchain extension for host platform is written by sane developers.
+ * */
+typedef struct SwapchainSyncObjects {
+    /** @b Signaled to the CPU when corresponding render target is no longer being rendered to by 
+     *     the GPU.*/
+    VkFence render_fence;
+
+    /** @b Signaled to the GPU when corresponding render target is no longer being rendered to by
+     *     the GPU.*/
+    VkSemaphore render_semaphore;
+
+    /** @b Signaled to the GPU when corresponding render target is no longer being used for
+     *     presentation to corresponding surface by the GPU. */
+    VkSemaphore present_semaphore;
+} SwapchainSyncObjects;
+
+/**
  * @c RenderTarget objects attached with @c RenderPass objects will go in invalid state if
  * after swapchain recreation, new @c RenderTarget objects are not created, by using new
  * data from swapchain.
@@ -105,6 +132,7 @@ typedef struct SwapchainReinitHandlerData {
  * @b Wrapper over VkSwapchainKHR handle and closely related objects.
  * */
 typedef struct Swapchain {
+    VkSurfaceKHR   surface;       /**< @b Surface associated with this swapchain. */
     VkSwapchainKHR swapchain;     /**< @b Swapchain created for the window. */
 
     VkExtent2D      image_extent; /**< @b Current swapchain image extent */
@@ -112,6 +140,18 @@ typedef struct Swapchain {
     Uint32          image_count;  /**< @b Number of images in swapchain. */
     SwapchainImage *images;       /**< @b Handle to images inside swapchain. */
     DeviceImage     depth_image;  /**< @b Common depth image attachments to all render targets */
+
+    /**
+     * @b Sync objects required for swapping buffers in swapchain.
+     * Total number of these is exactly same as number of images in the swapchain.
+     * */
+    SwapchainSyncObjects *sync_objects;
+
+    /**
+     * @b A value in `domain = integer mod swapchain->image_count`, that gives index 
+     *    of current sync object to be used.
+     * */
+    Uint32 current_sync_object_index;
 
     /**
      * @c This matches the total number of RenderPass objects using color attachments from 
@@ -124,21 +164,17 @@ typedef struct Swapchain {
     SwapchainReinitHandlerData *reinit_handlers;
     Size                        reinit_handler_count;    /**< @b How many have we stored? */
     Size                        reinit_handler_capacity; /**< @b How many can we store? */
-
-    /**
-     * @b Where all command buffers will be allocated from for each render target
-     *    command recording. 
-     * */
-    VkCommandPool cmd_pool;
 } Swapchain;
 
-Swapchain *swapchain_init (Swapchain *swapchain, VkSurfaceKHR surface, XwWindow *win);
+Swapchain *swapchain_init (Swapchain *swapchain, XwWindow *win);
 Swapchain *swapchain_deinit (Swapchain *swapchain);
-Swapchain *swapchain_reinit (Swapchain *swapchain, VkSurfaceKHR surface, XwWindow *win);
+Swapchain *swapchain_reinit (Swapchain *swapchain, XwWindow *win);
 Bool       swapchain_register_reinit_handler (
           Swapchain             *swapchain,
           SwapchainReinitHandler handler,
           RenderPass            *render_pass
       );
+Uint32 swapchain_begin_frame (Swapchain *swapchain, XwWindow *win);
+Bool   swapchain_end_frame (Swapchain *swapchain, XwWindow* win, VkCommandBuffer cmd, Uint32 image_index);
 
 #endif // ANVIE_SOURCE_CROSSGUI_PLUGIN_GRAPHICS_VULKAN_SWAPCHAIN_H

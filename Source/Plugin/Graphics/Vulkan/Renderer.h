@@ -35,29 +35,10 @@
 
 #include <Anvie/CrossGui/Graphics.h>
 
-/* local includes */
-#include "GraphicsContext.h"
-
-typedef struct RenderTarget       RenderTarget;
-typedef struct Swapchain          Swapchain;
+/* fwd declarations */
 typedef struct XuiGraphicsContext XuiGraphicsContext;
+typedef struct XwWindow           XwWindow;
 
-/**
- * @b Renderer.
- *
- * The idea of a renderer is to have a common renderer for all windows/surfaces.
- * CrossGui does not restrict user-code to have only one single window/surface, otherwise, it
- * just wouldn't be a GUI library anymore.
- *
- * Therefore we must make significant attempts to keep as many things common and shareable
- * between multiple windows.
- * */
-typedef struct Renderer {
-    DeviceBuffer vbo_rect_2d; /**< @b Vertex Buffer Object for 2d rectangle */
-} Renderer;
-
-Renderer *renderer_init (Renderer *renderer);
-Renderer *renderer_deinit (Renderer *renderer);
-Bool      renderer_draw_rect_2d (Renderer *renderer, XuiGraphicsContext *gctx, Rect2D rect);
+Bool draw_rect_2d (XuiGraphicsContext *gctx, XwWindow *win, Rect2D rect, Color color);
 
 #endif // ANVIE_CROSSGUI_SOURCE_PLUGIN_GRAPHICS_VULKAN_RENDERER_H

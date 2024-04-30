@@ -36,34 +36,6 @@
 /* vulkan includes */
 #include <vulkan/vulkan.h>
 
-/* fwd declarations */
-typedef struct Swapchain      Swapchain;
-typedef struct SwapchainImage SwapchainImage;
-typedef struct DeviceImage    DeviceImage;
-
-/**
- * @b A set of required render target syncrhonization primitves.
- *
- * To allow concurrency, we must assign each render target it's own set of syncrhonization
- * primitives.
- * */
-typedef struct RenderTargetSyncObjects {
-    /** @b Signaled to the CPU when corresponding render target is no longer being rendered to by 
-     *     the GPU.*/
-    VkFence render_fence;
-
-    /** @b Signaled to the GPU when corresponding render target is no longer being rendered to by
-     *     the GPU.*/
-    VkSemaphore render_semaphore;
-
-    /** @b Signaled to the GPU when corresponding render target is no longer being used for
-     *     presentation to corresponding surface by the GPU. */
-    VkSemaphore present_semaphore;
-} RenderTargetSyncObjects;
-
-RenderTargetSyncObjects *render_target_sync_objects_init (RenderTargetSyncObjects *sync);
-RenderTargetSyncObjects *render_target_sync_objects_deinit (RenderTargetSyncObjects *sync);
-
 /**
  * @b Contains data about a single render target.
  *
@@ -74,18 +46,22 @@ RenderTargetSyncObjects *render_target_sync_objects_deinit (RenderTargetSyncObje
  * @c RenderTarget objects are initialized by the parent @c RenderPass object.
  * */
 typedef struct RenderTarget {
-    /**
-     * @b Each render target has it's own command buffer for recording.
-     *    This allows concurrency to be possible. Meaning, we can record 
-     *    rendering commands for multiple render targets at the same time.
-     * */
-    VkCommandBuffer command_buffer;
+    struct {
+        /**
+         * @b Resetting associated command buffers individually frequently can be slow,
+         *    but resetting the whole pool at once is not. So, store the command pool and 
+         *    command buffer together for render targets.
+         * REF :
+         * */
+        VkCommandPool pool;
 
-    /**
-     * @b If we're aiming for concurrency, we need independent syncrhonization
-     *    primitves as well.
-     * */
-    RenderTargetSyncObjects sync;
+        /**
+         * @b Each render target has it's own command buffer for recording.
+         *    This allows concurrency to be possible. Meaning, we can record 
+         *    rendering commands for multiple render targets at the same time.
+         * */
+        VkCommandBuffer buffer;
+    } command;
 
     /**
      * @b A framebuffer is the actual render target inside this abstracted away object.
