@@ -325,10 +325,10 @@ DeviceBuffer *device_buffer_memcpy (DeviceBuffer *buffer, void *data, Size size)
  *
  * @param image Pointer to memory where @c DeviceImage object must be initialized.
  * @param usage Image usage flags.
- * @param width Image width.
- * @param height Image height.
+ * @param extent Image extent
  * @param format Image format (depending on image usage).
  * @param mem_property Bitmask of @c VkMemoryPropertyFlagBits representing designed memory properties.
+ * @param aspect_mask Bit mask created using `VK_IMAGE_ASPECT_XXXX_BIT`
  * @param queue_family_inddex Which queue family this image belongs to?
  *
  * @return @c image on success.
@@ -337,15 +337,15 @@ DeviceBuffer *device_buffer_memcpy (DeviceBuffer *buffer, void *data, Size size)
 DeviceImage *device_image_init (
     DeviceImage          *image,
     VkImageUsageFlags     usage,
-    Uint32                width,
-    Uint32                height,
+    VkExtent3D            extent,
     VkFormat              format,
-    VkImageAspectFlags    aspect_mask,
     VkMemoryPropertyFlags mem_property,
+    VkImageAspectFlags    aspect_mask,
     Uint32                queue_family_inddex
 ) {
     RETURN_VALUE_IF (
-        !image || !width || !height || queue_family_inddex == (Uint32)-1,
+        !image || !extent.width || !extent.height || !extent.depth ||
+            queue_family_inddex == (Uint32)-1,
         Null,
         ERR_INVALID_ARGUMENTS
     );
@@ -360,7 +360,7 @@ DeviceImage *device_image_init (
             .flags                 = 0,
             .imageType             = VK_IMAGE_TYPE_2D,
             .format                = format,
-            .extent                = (VkExtent3D) {width, height, 1},
+            .extent                = extent,
             .mipLevels             = 1,
             .arrayLayers           = 1,
             .samples               = VK_SAMPLE_COUNT_1_BIT,
@@ -368,8 +368,7 @@ DeviceImage *device_image_init (
             .usage                 = usage,
             .sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
             .queueFamilyIndexCount = 1,
-            .pQueueFamilyIndices   = ((Uint32[]) {vk.device.graphics_queue.family_index}
-                              ),
+            .pQueueFamilyIndices   = ((Uint32[]) {vk.device.graphics_queue.family_index}),
             .initialLayout         = VK_IMAGE_LAYOUT_UNDEFINED
         };
 
@@ -415,6 +414,9 @@ DeviceImage *device_image_init (
         );
     }
 
+    /* bind image and memory together */
+    vkBindImageMemory (device, image->image, image->memory, 0);
+
     /* create image view */
     {
         VkImageViewCreateInfo image_view_create_info = {
@@ -432,8 +434,11 @@ DeviceImage *device_image_init (
                              .a = VK_COMPONENT_SWIZZLE_IDENTITY,
                              },
             .subresourceRange =
-                {.aspectMask = aspect_mask, .baseArrayLayer = 0, .levelCount = 1, .baseMipLevel = 0
-                }
+                {.aspectMask     = aspect_mask,
+                             .layerCount     = 1,
+                             .baseArrayLayer = 0,
+                             .levelCount     = 1,
+                             .baseMipLevel   = 0}
         };
 
         VkResult res = vkCreateImageView (device, &image_view_create_info, Null, &image->view);
@@ -444,6 +449,9 @@ DeviceImage *device_image_init (
             res
         );
     }
+
+    image->format = format;
+    image->extent = extent;
 
     return image;
 

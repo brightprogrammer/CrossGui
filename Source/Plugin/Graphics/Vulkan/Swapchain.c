@@ -344,8 +344,7 @@ Swapchain *swapchain_init (Swapchain *swapchain, XwWindow *win) {
         !device_image_init (
             &swapchain->depth_image,
             VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-            swapchain->image_extent.width,
-            swapchain->image_extent.height,
+            (VkExtent3D) {swapchain->image_extent.width, swapchain->image_extent.height, 1},
             VK_FORMAT_D32_SFLOAT,
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
             VK_IMAGE_ASPECT_DEPTH_BIT,
@@ -579,10 +578,7 @@ Uint32 swapchain_begin_frame (Swapchain *swapchain, XwWindow *win) {
         /* shorter name for currently in-use sync object */
         SwapchainSyncObjects *sync = swapchain->sync_objects + swapchain->current_sync_object_index;
 
-        /* wait for all gpu rendering to complete */
-        VkFence fences[] = {sync->render_fence};
-
-        VkResult res = vkWaitForFences (device, ARRAY_SIZE (fences), fences, True, 1e9);
+        VkResult res = vkWaitForFences (device, 1, &sync->render_fence, True, 1e9);
         RETURN_VALUE_IF (
             res != VK_SUCCESS,
             -1,
@@ -622,7 +618,7 @@ Uint32 swapchain_begin_frame (Swapchain *swapchain, XwWindow *win) {
         }
 
         /* need to reset fence before we use it again */
-        res = vkResetFences (device, ARRAY_SIZE (fences), fences);
+        res = vkResetFences (device, 1, &sync->render_fence);
         RETURN_VALUE_IF (res != VK_SUCCESS, -1, "Failed to reset fences. RET = %d\n", res);
     }
 

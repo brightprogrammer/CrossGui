@@ -35,68 +35,83 @@
 
 #include "GraphicsContext.h"
 #include "RenderTarget.h"
+#include "Swapchain.h"
 #include "Vulkan.h"
 
 Bool draw_rect_2d (XuiGraphicsContext *gctx, XwWindow *win, Rect2D rect, Color color) {
+    UNUSED (rect);
     RETURN_VALUE_IF (!gctx || !win, False, ERR_INVALID_ARGUMENTS);
 
     VkDevice device = vk.device.logical;
 
-                          /* TODO: create command pool for each RenderTarget 
-                           * update this code */
+    VkRenderPass  render_pass    = gctx->default_render_pass.render_pass;
+    RenderTarget *render_targets = gctx->default_render_pass.render_targets;
+    VkExtent2D    image_extent   = gctx->swapchain.image_extent;
 
-    RenderPass   *rp             = &gctx->default_render_pass;
-    RenderTarget *render_targets = rp->render_targets;
-    VkSurfaceKHR  surface        = gctx->surface;
-    Swapchain    *swapchain      = &gctx->swapchain;
+    Uint32        image_index = swapchain_begin_frame (&gctx->swapchain, win);
+    RenderTarget *rt          = render_targets + image_index;
+    VkFramebuffer framebuffer = rt->framebuffer;
 
     /* reset command buffer and record draw commands again */
-    res = vkResetCommandBuffer (surface->cmd_buffer, 0);
-    GOTO_HANDLER_IF (
+    VkResult res = vkResetCommandPool (device, rt->command.pool, 0);
+    RETURN_VALUE_IF (
         res != VK_SUCCESS,
-        DRAW_ERROR,
+        False,
         "Failed to reset command buffer for recording new commands. RET = %d\n",
         res
     );
 
-    VkCommandBuffer          cmd            = surface->cmd_buffer;
-    VkCommandBufferBeginInfo cmd_begin_info = {
-        .sType            = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-        .pNext            = Null,
-        .flags            = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-        .pInheritanceInfo = Null
-    };
+    /* begin command buffer recording */
+    VkCommandBuffer cmd = rt->command.buffer;
+    {
+        VkCommandBufferBeginInfo cmd_begin_info = {
+            .sType            = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+            .pNext            = Null,
+            .flags            = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+            .pInheritanceInfo = Null
+        };
 
-    res = vkBeginCommandBuffer (cmd, &cmd_begin_info);
-    GOTO_HANDLER_IF (
-        res != VK_SUCCESS,
-        DRAW_ERROR,
-        "Failed to begin command buffer recording. RET = %d\n",
-        res
-    );
+        res = vkBeginCommandBuffer (cmd, &cmd_begin_info);
+        RETURN_VALUE_IF (
+            res != VK_SUCCESS,
+            False,
+            "Failed to begin command buffer recording. RET = %d\n",
+            res
+        );
+    }
 
-    VkClearValue clear_value = {.color = {{0, 0, 0, 1}}};
+    /* begin render pass */
+    {
+        VkClearValue color_clear_value = {.color = {{color.r, color.g, color.b, color.a}}};
+        VkClearValue depth_clear_value = {
+            .depthStencil = {.depth = 0.f, .stencil = 0.f}
+        };
 
-    VkRenderPassBeginInfo render_pass_begin_info = {
-        .sType       = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-        .pNext       = Null,
-        .renderPass  = surface->render_pass,
-        .renderArea  = {.offset = {.x = 0, .y = 0}, .extent = swapchain->swapchain_image_extent},
-        .framebuffer = surface->framebuffers[next_image_index],
-        .clearValueCount = 1,
-        .pClearValues    = &clear_value
-    };
+        VkRenderPassBeginInfo render_pass_begin_info = {
+            .sType           = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+            .pNext           = Null,
+            .renderPass      = render_pass,
+            .renderArea      = {.offset = {.x = 0, .y = 0}, .extent = image_extent},
+            .framebuffer     = framebuffer,
+            .clearValueCount = 2,
+            .pClearValues    = (VkClearValue[]){color_clear_value, depth_clear_value}
+        };
 
-    vkCmdBeginRenderPass (cmd, &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
+        vkCmdBeginRenderPass (cmd, &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
+    }
+
+    /* end render pass */
     vkCmdEndRenderPass (cmd);
 
     res = vkEndCommandBuffer (cmd);
-    GOTO_HANDLER_IF (
+    RETURN_VALUE_IF (
         res != VK_SUCCESS,
-        DRAW_ERROR,
+        -1,
         "Failed to end command buffer recording. RET = %d\n",
         res
     );
+
+    swapchain_end_frame (&gctx->swapchain, win, cmd, image_index);
 
     return True;
 }

@@ -52,7 +52,7 @@ int main (Int32 argc, CString *argv) {
             fflush (stderr);
         }
 
-        gplug->draw_2d (gctx, xwin, (Vertex2D *)1, 1);
+        gplug->draw_rect_2d (gctx, xwin, (Rect2D) {0}, (Color) {1, 1, 0, 1});
     }
 
     /* TODO: port SRB objects as well to vulkan plugin.

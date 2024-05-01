@@ -46,15 +46,12 @@
 #include "Device.h"
 #include "GraphicsContext.h"
 #include "Renderer.h"
-#include "Swapchain.h"
 #include "Vulkan.h"
 
 Vulkan vk = {0};
 
 static Bool init();
 static Bool deinit();
-static Bool
-    draw_2d (XuiGraphicsContext *gctx, XwWindow *xwin, Vertex2D *vertices, Size vertex_count);
 
 static Bool init() {
     /* create vulkan instance */

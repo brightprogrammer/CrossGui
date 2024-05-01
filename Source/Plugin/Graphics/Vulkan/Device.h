@@ -82,17 +82,16 @@ typedef struct DeviceImage {
     VkDeviceMemory memory; /**< @b Allocated device memory handle */
     VkImageView    view;   /**< @b Image view. */
     VkFormat       format; /**< @b Image format */
-    VkExtent2D     extent; /**< @b Image dimensions. */
+    VkExtent3D     extent; /**< @b Image dimensions. */
 } DeviceImage;
 
 DeviceImage *device_image_init (
     DeviceImage          *image,
     VkImageUsageFlags     usage,
-    Uint32                width,
-    Uint32                height,
+    VkExtent3D            extent,
     VkFormat              format,
-    VkImageAspectFlags aspect_mask,
     VkMemoryPropertyFlags mem_property,
+    VkImageAspectFlags    aspect_mask,
     Uint32                queue_family_inddex
 );
 DeviceImage *device_image_deinit (DeviceImage *image);

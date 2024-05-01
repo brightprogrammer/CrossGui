@@ -75,12 +75,6 @@ typedef struct RenderPass {
     VkRenderPass render_pass;
 
     /**
-     * @b From where all @c RenderTarget objects will allocate their @c VkCommandBuffer objects
-     * for command recording
-     * */
-    VkCommandPool command_pool;
-
-    /**
      * @b Number of @c RenderTarget objects.
      * This value exactly matches with the total number of swapchain images in the
      * @c Swapchain object that was used to create this @c RenderPass.
