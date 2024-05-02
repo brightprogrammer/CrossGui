@@ -329,7 +329,7 @@ GraphicsPipeline *graphics_pipeline_init_default (
             .alphaToOneEnable      = VK_FALSE
         };
 
-        /* describe z-fighting behavior : disabled for now */
+        /* TODO: describe z-fighting behavior */
         VkPipelineDepthStencilStateCreateInfo depth_stencil_state = {0};
         depth_stencil_state.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
 

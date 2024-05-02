@@ -34,11 +34,12 @@
 #define ANVIE_CROSSGUI_SOURCE_PLUGIN_GRAPHICS_VULKAN_RENDERER_H
 
 #include <Anvie/CrossGui/Graphics.h>
+#include <Anvie/CrossGui/Plugin/Graphics/API.h>
 
 /* fwd declarations */
 typedef struct XuiGraphicsContext XuiGraphicsContext;
 typedef struct XwWindow           XwWindow;
 
-Bool draw_rect_2d (XuiGraphicsContext *gctx, XwWindow *win, Rect2D rect, Color color);
+XuiRenderStatus draw_rect_2d (XuiGraphicsContext *gctx, XwWindow *win, Rect2D rect, Color color);
 
 #endif // ANVIE_CROSSGUI_SOURCE_PLUGIN_GRAPHICS_VULKAN_RENDERER_H

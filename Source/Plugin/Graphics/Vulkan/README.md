@@ -1,6 +1,16 @@
 # CrossGui Vulkan Graphics Plugin
 
-## [[**Thu, 2nd May 2024**]]
+## [[**Thu, 2nd May 2024**]] - 2
+
+Added `XuiRenderStatus` enum to be returned by `draw_xyz` method to give more
+verbose error handling options to user-code.
+
+- A value of `XUI_RENDER_STATUS_ERR` means irrecoverable error.
+- A value of `XUI_RENDER_STATUS_CONTINUE` is generally issued on swapchain resize or
+    suboptimal
+- A value of `XUI_RENDER_STATUS_OK` means success.
+
+## [[**Thu, 2nd May 2024**]] - 1
 
 Finally refactoring finished! Phew!! A 9 commit long refactor work!
 Here are the changes in this final commit that solves all problems:

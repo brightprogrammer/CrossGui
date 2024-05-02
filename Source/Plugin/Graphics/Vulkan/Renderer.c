@@ -33,20 +33,125 @@
 /* local includes */
 #include "Renderer.h"
 
+#include "Anvie/Common.h"
+#include "Anvie/CrossGui/Plugin/Graphics/API.h"
 #include "GraphicsContext.h"
 #include "Swapchain.h"
 #include "Vulkan.h"
 
-Bool draw_rect_2d (XuiGraphicsContext *gctx, XwWindow *win, Rect2D rect, Color color) {
+#include <vulkan/vulkan_core.h>
+
+typedef struct BeginEndInfo {
+    FrameData    *frame_data;
+    VkFramebuffer framebuffer;
+    Uint32        image_index;
+} BeginEndInfo;
+
+/**************************************************************************************************/
+/********************************** PRIVATE METHOD DECLARATIONS ***********************************/
+/**************************************************************************************************/
+
+static inline XuiRenderStatus begin_frame (
+    RenderPass   *render_pass,
+    Swapchain    *swapchain,
+    XwWindow     *win,
+    BeginEndInfo *begin_info
+);
+static inline XuiRenderStatus end_frame (
+    RenderPass   *render_pass,
+    Swapchain    *swapchain,
+    XwWindow     *win,
+    BeginEndInfo *end_info
+);
+
+/**************************************************************************************************/
+/*********************************** PUBLIC METHOD DEFINITIONS ************************************/
+/**************************************************************************************************/
+
+XuiRenderStatus draw_rect_2d (XuiGraphicsContext *gctx, XwWindow *win, Rect2D rect, Color color) {
     UNUSED (rect);
     RETURN_VALUE_IF (!gctx || !win, False, ERR_INVALID_ARGUMENTS);
-
-    VkDevice device = vk.device.logical;
 
     RenderPass *render_pass = &gctx->default_render_pass;
     Swapchain  *swapchain   = &gctx->swapchain;
 
-    FrameData *frame_data = render_pass->frame_data + render_pass->frame_index;
+    BeginEndInfo info = {0};
+
+    /* begin frame rendering and command recording,
+     * will get new frame data in info struct */
+    XuiRenderStatus status = begin_frame (render_pass, swapchain, win, &info);
+    if (status == XUI_RENDER_STATUS_CONTINUE || status == XUI_RENDER_STATUS_ERR) {
+        return status;
+    }
+
+    VkCommandBuffer cmd = info.frame_data->command.buffer;
+
+    /* begin render pass */
+    {
+        VkClearValue color_clear_value = {.color = {{color.r, color.g, color.b, color.a}}};
+        VkClearValue depth_clear_value = {
+            .depthStencil = {.depth = 0.f, .stencil = 0.f}
+        };
+
+        VkRenderPassBeginInfo render_pass_begin_info = {
+            .sType           = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+            .pNext           = Null,
+            .renderPass      = render_pass->render_pass,
+            .renderArea      = {.offset = {.x = 0, .y = 0}, .extent = swapchain->image_extent},
+            .framebuffer     = info.framebuffer,
+            .clearValueCount = 2,
+            .pClearValues    = (VkClearValue[]) {         color_clear_value,                 depth_clear_value}
+        };
+
+        vkCmdBeginRenderPass (cmd, &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
+    }
+
+    /* end render pass */
+    vkCmdEndRenderPass (cmd);
+
+    /* end command buffer */
+    status = end_frame (render_pass, swapchain, win, &info);
+
+    return status;
+}
+
+/**************************************************************************************************/
+/*********************************** PRIVATE METHOD DEFINITIONS ***********************************/
+/**************************************************************************************************/
+
+/**
+ * @b Begin frame rendering.
+ *
+ * - Get the next image available index
+ * - Begin command buffer recording
+ * - Get corresponding framebuffer
+ * - Store all this in @c BeginEndInfo
+ *
+ * @param render_pass
+ * @param swapchain
+ * @param win
+ * @param begin_info Where all the data will be stored.
+ *
+ * @return @c XUI_RENDER_STATUS_OK on success.
+ * @return @c XUI_RENDER_STATUS_CONTINUE if a recoverable error occured.
+ * @return @c XUI_RENDER_STATUS_ERR otherwise.
+ * */
+static inline XuiRenderStatus begin_frame (
+    RenderPass   *render_pass,
+    Swapchain    *swapchain,
+    XwWindow     *win,
+    BeginEndInfo *begin_info
+) {
+    RETURN_VALUE_IF (
+        !render_pass || !win || !swapchain || !begin_info,
+        XUI_RENDER_STATUS_ERR,
+        ERR_INVALID_ARGUMENTS
+    );
+
+    VkDevice device = vk.device.logical;
+
+    FrameData *frame_data  = render_pass->frame_data + render_pass->frame_index;
+    begin_info->frame_data = frame_data;
 
     /* get next image index */
     Uint32 image_index = -1;
@@ -54,7 +159,7 @@ Bool draw_rect_2d (XuiGraphicsContext *gctx, XwWindow *win, Rect2D rect, Color c
         VkResult res = vkWaitForFences (device, 1, &frame_data->sync.render_fence, True, 1e9);
         RETURN_VALUE_IF (
             res != VK_SUCCESS,
-            -1,
+            XUI_RENDER_STATUS_ERR,
             "Timeout (1s) while waiting for fences. RET = %d\n",
             res
         );
@@ -74,22 +179,17 @@ Bool draw_rect_2d (XuiGraphicsContext *gctx, XwWindow *win, Rect2D rect, Color c
             if (res == VK_SUBOPTIMAL_KHR || res == VK_ERROR_OUT_OF_DATE_KHR) {
                 RETURN_VALUE_IF (
                     !swapchain_reinit (swapchain, win),
-                    -1,
+                    XUI_RENDER_STATUS_ERR,
                     "Failed to recreate swapchain\n"
                 );
 
-                /* Whether we return from here depends on whether or not
-                 * we're getting swapchain image index in same function where we record
-                 * commands or not.
-                 * Here we do, so we return. 
-                 * The situation will be different when it's moved to different function. */
-                return True;
+                return XUI_RENDER_STATUS_CONTINUE;
             }
 
             /* irrecoverable */
             RETURN_VALUE_IF (
                 res != VK_SUCCESS,
-                -1,
+                XUI_RENDER_STATUS_ERR,
                 "Failed to get next image index from swapchain. RET = %d\n",
                 res
             );
@@ -97,17 +197,24 @@ Bool draw_rect_2d (XuiGraphicsContext *gctx, XwWindow *win, Rect2D rect, Color c
 
         /* need to reset fence before we use it again */
         res = vkResetFences (device, 1, &frame_data->sync.render_fence);
-        RETURN_VALUE_IF (res != VK_SUCCESS, -1, "Failed to reset fences. RET = %d\n", res);
+        RETURN_VALUE_IF (
+            res != VK_SUCCESS,
+            XUI_RENDER_STATUS_ERR,
+            "Failed to reset fences. RET = %d\n",
+            res
+        );
     }
+    begin_info->image_index = image_index;
 
     /* get framebuffer corresponding to retrieved image index */
-    VkFramebuffer framebuffer = gctx->default_render_pass.framebuffers[image_index];
+    VkFramebuffer framebuffer = render_pass->framebuffers[image_index];
+    begin_info->framebuffer   = framebuffer;
 
     /* reset command buffer and record draw commands again */
     VkResult res = vkResetCommandPool (device, frame_data->command.pool, 0);
     RETURN_VALUE_IF (
         res != VK_SUCCESS,
-        False,
+        XUI_RENDER_STATUS_ERR,
         "Failed to reset command buffer for recording new commands. RET = %d\n",
         res
     );
@@ -125,36 +232,43 @@ Bool draw_rect_2d (XuiGraphicsContext *gctx, XwWindow *win, Rect2D rect, Color c
         res = vkBeginCommandBuffer (cmd, &cmd_begin_info);
         RETURN_VALUE_IF (
             res != VK_SUCCESS,
-            False,
+            XUI_RENDER_STATUS_ERR,
             "Failed to begin command buffer recording. RET = %d\n",
             res
         );
     }
 
-    /* begin render pass */
-    {
-        VkClearValue color_clear_value = {.color = {{color.r, color.g, color.b, color.a}}};
-        VkClearValue depth_clear_value = {
-            .depthStencil = {.depth = 0.f, .stencil = 0.f}
-        };
+    return XUI_RENDER_STATUS_OK;
+}
 
-        VkRenderPassBeginInfo render_pass_begin_info = {
-            .sType           = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-            .pNext           = Null,
-            .renderPass      = render_pass->render_pass,
-            .renderArea      = {.offset = {.x = 0, .y = 0}, .extent = swapchain->image_extent},
-            .framebuffer     = framebuffer,
-            .clearValueCount = 2,
-            .pClearValues    = (VkClearValue[]) {         color_clear_value,                 depth_clear_value}
-        };
+/**
+ * @b End frame rendering.
+ *
+ * Uses the data provided in @c end_info returned by
+ * @c begin_frame method.
+ *
+ * @param render_pass
+ * @param swapchain
+ * @param win
+ * @param end_info @c BeginEndInfo returned by @c begin_frame method 
+ *
+ * @return @c XUI_RENDER_STATUS_OK on success.
+ * @return @c XUI_RENDER_STATUS_CONTINUE if a recoverable error occured.
+ * @return @c XUI_RENDER_STATUS_ERR otherwise.
+ * */
+static inline XuiRenderStatus end_frame (
+    RenderPass   *render_pass,
+    Swapchain    *swapchain,
+    XwWindow     *win,
+    BeginEndInfo *end_info
+) {
+    RETURN_VALUE_IF (!render_pass || !win || !swapchain || !end_info, False, ERR_INVALID_ARGUMENTS);
 
-        vkCmdBeginRenderPass (cmd, &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
-    }
+    FrameData      *frame_data  = end_info->frame_data;
+    Uint32          image_index = end_info->image_index;
+    VkCommandBuffer cmd         = frame_data->command.buffer;
 
-    /* end render pass */
-    vkCmdEndRenderPass (cmd);
-
-    res = vkEndCommandBuffer (cmd);
+    VkResult res = vkEndCommandBuffer (cmd);
     RETURN_VALUE_IF (
         res != VK_SUCCESS,
         -1,
@@ -219,7 +333,7 @@ Bool draw_rect_2d (XuiGraphicsContext *gctx, XwWindow *win, Rect2D rect, Color c
 
         RETURN_VALUE_IF (
             res != VK_SUCCESS,
-            -1,
+            False,
             "Failed to present rendered images to surface. RET = %d\n",
             res
         );

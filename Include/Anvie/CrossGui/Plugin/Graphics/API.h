@@ -42,6 +42,48 @@
 #include <Anvie/CrossGui/Graphics.h>
 
 /**
+ * @b Set of possible values returned by render/draw methods.
+ * */
+typedef enum XuiRenderStatus {
+    /**
+     * @b Treated same as @x XUI_RENDER_STATUS_ERR
+     * */
+    XUI_RENDER_STATUS_UNKNOWN = 0,
+
+    /**
+    * @b Everything's ok! keep going...
+    *
+    * This return value from a render (draw) method means the draw
+    * call was processed successfully and user code can continue to
+    * render.
+    * */
+    XUI_RENDER_STATUS_OK,
+
+    /**
+     * @b Something bad happened, and it's not recoverable. Cannot continue.
+     * 
+     * When a render (draw) method returns this value, the plugin must not call
+     * the draw method again because that won't solve the problem. The method to
+     * solve this is probably plugin dependent.
+     * */
+    XUI_RENDER_STATUS_ERR = XUI_RENDER_STATUS_UNKNOWN,
+
+    /**
+     * @b Something bad happened, but continue to recover from it. 
+     * 
+     * When a render (draw) method returns this value, the plugin user must
+     * not continue further but treat that frame as dropped, and try to render again
+     * from the beginning. This will automatically recover the renderer from the error.
+     * 
+     * This usually happens when the window is resized or is moved from one screen
+     * to other.
+     * */
+    XUI_RENDER_STATUS_CONTINUE,
+
+    XUI_RENDER_STATUS_MAX /**< @b Number of render status enums */
+} XuiRenderStatus;
+
+/**
  * @b Opaque structure, defined by the plugin.
  *
  * Rendered image presentation method is different in different rendering APIs.
@@ -97,7 +139,7 @@ typedef Bool (*XuiGraphicsContextResize) (XuiGraphicsContext *graphics_context, 
  * @return True if draw was successful.
  * @return False otherwise.
  * */
-typedef Bool (*XuiGraphicsDrawRect2D) (
+typedef XuiRenderStatus (*XuiGraphicsDrawRect2D) (
     XuiGraphicsContext *graphics_context,
     XwWindow           *xwin,
     Rect2D              rect,
