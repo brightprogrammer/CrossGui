@@ -53,6 +53,45 @@ typedef enum RenderPassType {
 } RenderPassType;
 
 /**
+ * @b Frame command recording and synchronization data.
+ * */
+typedef struct FrameData {
+    struct {
+        /** @b Signaled to the CPU when corresponding render target is no longer being rendered to by 
+         *     the GPU.*/
+        VkFence render_fence;
+
+        /** @b Signaled to the GPU when corresponding render target is no longer being rendered to by
+         *     the GPU.*/
+        VkSemaphore render_semaphore;
+
+        /** @b Signaled to the GPU when corresponding render target is no longer being used for
+         *     presentation to corresponding surface by the GPU. */
+        VkSemaphore present_semaphore;
+    } sync;
+
+    /**
+     * @b Command objects.
+     *
+     * There's a one-to-one correspondance between the command pool and command buffer.
+     * */
+    struct {
+        /**
+         * @b Command pool created with `VK_COMMAND_POOL_TRANSIENT_BIT` so that the command
+         *    buffer can directly be reset, instead of resetting each buffer separately.
+         * */
+        VkCommandPool pool;
+
+        /**
+         * @b Buffer allocated from above command pool.
+         * */
+        VkCommandBuffer buffer;
+    } command;
+} FrameData;
+
+#define FRAME_LIMIT 2
+
+/**
  * @b RenderPass objects are pre-baked for each swapchain.
  * Meaning for each swapchain, there exists a set number of RenderPass objects,
  * and they are created the moment a new @c XuiGraphicsContext object is created.
@@ -79,8 +118,11 @@ typedef struct RenderPass {
      * This value exactly matches with the total number of swapchain images in the
      * @c Swapchain object that was used to create this @c RenderPass.
      * */
-    Size          render_target_count;
-    RenderTarget *render_targets; /**< @b RenderTarget objects in this @c RenderPass*/
+    Size           framebuffer_count;
+    VkFramebuffer *framebuffers; /**< @b RenderTarget objects in this @c RenderPass*/
+
+    Uint8    frame_index;       /**< @b Index of current frame in use. */
+    FrameData frame_data[FRAME_LIMIT];
 
     RenderPassType type;
 
@@ -96,5 +138,7 @@ typedef struct RenderPass {
 
 RenderPass *render_pass_init_default (RenderPass *rp, Swapchain *swapchain);
 RenderPass *render_pass_deinit (RenderPass *rp);
+Bool        render_pass_wait_frame (RenderPass *rp);
+Bool        render_pass_reset_frame (RenderPass *rp);
 
 #endif // ANVIE_CROSSGUI_SOURCE_PLUGIN_GRAPHICS_VULKAN_RENDER_PASS_H

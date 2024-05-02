@@ -34,7 +34,6 @@
 #include "Renderer.h"
 
 #include "GraphicsContext.h"
-#include "RenderTarget.h"
 #include "Swapchain.h"
 #include "Vulkan.h"
 
@@ -44,16 +43,68 @@ Bool draw_rect_2d (XuiGraphicsContext *gctx, XwWindow *win, Rect2D rect, Color c
 
     VkDevice device = vk.device.logical;
 
-    VkRenderPass  render_pass    = gctx->default_render_pass.render_pass;
-    RenderTarget *render_targets = gctx->default_render_pass.render_targets;
-    VkExtent2D    image_extent   = gctx->swapchain.image_extent;
+    RenderPass *render_pass = &gctx->default_render_pass;
+    Swapchain  *swapchain   = &gctx->swapchain;
 
-    Uint32        image_index = swapchain_begin_frame (&gctx->swapchain, win);
-    RenderTarget *rt          = render_targets + image_index;
-    VkFramebuffer framebuffer = rt->framebuffer;
+    FrameData *frame_data = render_pass->frame_data + render_pass->frame_index;
+
+    /* get next image index */
+    Uint32 image_index = -1;
+    {
+        VkResult res = vkWaitForFences (device, 1, &frame_data->sync.render_fence, True, 1e9);
+        RETURN_VALUE_IF (
+            res != VK_SUCCESS,
+            -1,
+            "Timeout (1s) while waiting for fences. RET = %d\n",
+            res
+        );
+
+        /* get next image index */
+        {
+            res = vkAcquireNextImageKHR (
+                device,
+                swapchain->swapchain,
+                1e9, /* 1e9 ns = 1 s */
+                frame_data->sync.present_semaphore,
+                Null,
+                &image_index
+            );
+
+            /* recoverable error cases */
+            if (res == VK_SUBOPTIMAL_KHR || res == VK_ERROR_OUT_OF_DATE_KHR) {
+                RETURN_VALUE_IF (
+                    !swapchain_reinit (swapchain, win),
+                    -1,
+                    "Failed to recreate swapchain\n"
+                );
+
+                /* Whether we return from here depends on whether or not
+                 * we're getting swapchain image index in same function where we record
+                 * commands or not.
+                 * Here we do, so we return. 
+                 * The situation will be different when it's moved to different function. */
+                return True;
+            }
+
+            /* irrecoverable */
+            RETURN_VALUE_IF (
+                res != VK_SUCCESS,
+                -1,
+                "Failed to get next image index from swapchain. RET = %d\n",
+                res
+            );
+        }
+
+        /* need to reset fence before we use it again */
+        res = vkResetFences (device, 1, &frame_data->sync.render_fence);
+        RETURN_VALUE_IF (res != VK_SUCCESS, -1, "Failed to reset fences. RET = %d\n", res);
+    }
+
+    /* get framebuffer corresponding to retrieved image index */
+    VkFramebuffer framebuffer = gctx->default_render_pass.framebuffers[image_index];
 
     /* reset command buffer and record draw commands again */
-    VkResult res = vkResetCommandPool (device, rt->command.pool, 0);
+    VkResult res = vkResetCommandPool (device, frame_data->command.pool, 0);
     RETURN_VALUE_IF (
         res != VK_SUCCESS,
         False,
@@ -62,7 +113,7 @@ Bool draw_rect_2d (XuiGraphicsContext *gctx, XwWindow *win, Rect2D rect, Color c
     );
 
     /* begin command buffer recording */
-    VkCommandBuffer cmd = rt->command.buffer;
+    VkCommandBuffer cmd = frame_data->command.buffer;
     {
         VkCommandBufferBeginInfo cmd_begin_info = {
             .sType            = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -90,11 +141,11 @@ Bool draw_rect_2d (XuiGraphicsContext *gctx, XwWindow *win, Rect2D rect, Color c
         VkRenderPassBeginInfo render_pass_begin_info = {
             .sType           = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
             .pNext           = Null,
-            .renderPass      = render_pass,
-            .renderArea      = {.offset = {.x = 0, .y = 0}, .extent = image_extent},
+            .renderPass      = render_pass->render_pass,
+            .renderArea      = {.offset = {.x = 0, .y = 0}, .extent = swapchain->image_extent},
             .framebuffer     = framebuffer,
             .clearValueCount = 2,
-            .pClearValues    = (VkClearValue[]){color_clear_value, depth_clear_value}
+            .pClearValues    = (VkClearValue[]) {         color_clear_value,                 depth_clear_value}
         };
 
         vkCmdBeginRenderPass (cmd, &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
@@ -111,7 +162,70 @@ Bool draw_rect_2d (XuiGraphicsContext *gctx, XwWindow *win, Rect2D rect, Color c
         res
     );
 
-    swapchain_end_frame (&gctx->swapchain, win, cmd, image_index);
+    /* submit for rendering */
+    {
+        /* wait when rendered image is being presented */
+        VkPipelineStageFlags wait_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+
+        VkSubmitInfo submit_info = {
+            .sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+            .pNext                = Null,
+            .waitSemaphoreCount   = 1,
+            .pWaitSemaphores      = &frame_data->sync.present_semaphore,
+            .pWaitDstStageMask    = &wait_stage,
+            .signalSemaphoreCount = 1,
+            .pSignalSemaphores    = &frame_data->sync.render_semaphore,
+            .commandBufferCount   = 1,
+            .pCommandBuffers      = &cmd
+        };
+
+        VkResult res = vkQueueSubmit (
+            vk.device.graphics_queue.handle,
+            1,
+            &submit_info,
+            frame_data->sync.render_fence
+        );
+
+        RETURN_VALUE_IF (
+            res != VK_SUCCESS,
+            False,
+            "Failed to submit command buffers for execution. RET = %d\n",
+            res
+        );
+    }
+
+    /* submit for presentation to surface */
+    {
+        VkPresentInfoKHR present_info = {
+            .sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+            .pNext              = Null,
+            .swapchainCount     = 1,
+            .pSwapchains        = &swapchain->swapchain,
+            .waitSemaphoreCount = 1,
+            .pWaitSemaphores    = &frame_data->sync.render_semaphore,
+            .pImageIndices      = &image_index
+        };
+
+        VkResult res = vkQueuePresentKHR (vk.device.graphics_queue.handle, &present_info);
+
+        if (res == VK_SUBOPTIMAL_KHR || res == VK_ERROR_OUT_OF_DATE_KHR) {
+            RETURN_VALUE_IF (
+                !swapchain_reinit (swapchain, win),
+                False,
+                "Failed to recreate swapchain\n"
+            );
+            res = VK_SUCCESS; /* so that next check does not fail */
+        }
+
+        RETURN_VALUE_IF (
+            res != VK_SUCCESS,
+            -1,
+            "Failed to present rendered images to surface. RET = %d\n",
+            res
+        );
+    }
+
+    render_pass->frame_index = (render_pass->frame_index + 1) % FRAME_LIMIT;
 
     return True;
 }

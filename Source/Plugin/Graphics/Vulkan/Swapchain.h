@@ -50,7 +50,6 @@
 #include <Anvie/Types.h>
 
 /* local includes */
-#include "Anvie/Common.h"
 #include "Device.h"
 
 /* vulkan include */
@@ -95,17 +94,6 @@ typedef struct SwapchainImage {
  * that the swapchain extension for host platform is written by sane developers.
  * */
 typedef struct SwapchainSyncObjects {
-    /** @b Signaled to the CPU when corresponding render target is no longer being rendered to by 
-     *     the GPU.*/
-    VkFence render_fence;
-
-    /** @b Signaled to the GPU when corresponding render target is no longer being rendered to by
-     *     the GPU.*/
-    VkSemaphore render_semaphore;
-
-    /** @b Signaled to the GPU when corresponding render target is no longer being used for
-     *     presentation to corresponding surface by the GPU. */
-    VkSemaphore present_semaphore;
 } SwapchainSyncObjects;
 
 /**
@@ -142,18 +130,6 @@ typedef struct Swapchain {
     DeviceImage     depth_image;  /**< @b Common depth image attachments to all render targets */
 
     /**
-     * @b Sync objects required for swapping buffers in swapchain.
-     * Total number of these is exactly same as number of images in the swapchain.
-     * */
-    SwapchainSyncObjects *sync_objects;
-
-    /**
-     * @b A value in `domain = integer mod swapchain->image_count`, that gives index 
-     *    of current sync object to be used.
-     * */
-    Uint32 current_sync_object_index;
-
-    /**
      * @c This matches the total number of RenderPass objects using color attachments from 
      *    this swapchain.
      *
@@ -174,7 +150,5 @@ Bool       swapchain_register_reinit_handler (
           SwapchainReinitHandler handler,
           RenderPass            *render_pass
       );
-Uint32 swapchain_begin_frame (Swapchain *swapchain, XwWindow *win);
-Bool   swapchain_end_frame (Swapchain *swapchain, XwWindow* win, VkCommandBuffer cmd, Uint32 image_index);
 
 #endif // ANVIE_SOURCE_CROSSGUI_PLUGIN_GRAPHICS_VULKAN_SWAPCHAIN_H

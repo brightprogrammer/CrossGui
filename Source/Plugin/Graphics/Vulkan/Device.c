@@ -169,8 +169,6 @@ Bool device_deinit() {
         vkDestroyDevice (device, Null);
     }
 
-    memset (device, 0, sizeof (Device));
-
     return True;
 }
 

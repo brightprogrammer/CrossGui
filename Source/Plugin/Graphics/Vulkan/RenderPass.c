@@ -39,7 +39,6 @@
 /* local includes */
 #include "GraphicsPipeline.h"
 #include "RenderPass.h"
-#include "RenderTarget.h"
 #include "Swapchain.h"
 #include "Vulkan.h"
 
@@ -48,9 +47,10 @@
 /**************************************************************************************************/
 
 static inline RenderPass *
-    default_render_pass_create_render_targets (RenderPass *render_pass, Swapchain *swapchain);
-
-static inline RenderPass *render_pass_destroy_render_targets (RenderPass *render_pass);
+    default_render_pass_create_framebuffers (RenderPass *render_pass, Swapchain *swapchain);
+static inline RenderPass *render_pass_destroy_framebuffers (RenderPass *render_pass);
+static inline RenderPass *render_pass_create_frame_data (RenderPass *render_pass);
+static inline RenderPass *render_pass_destroy_frame_data (RenderPass *render_pass);
 
 static inline Bool default_render_pass_swapchain_reinit_event_handler (
     RenderPass *render_pass,
@@ -80,8 +80,6 @@ RenderPass *render_pass_init_default (RenderPass *render_pass, Swapchain *swapch
 
     /* create render pass */
     {
-        PRINT_ERR ("Given depth image is not in use yet! Fix this...\n");
-
         VkAttachmentDescription color_attachment = {
             .flags          = 0,
             .format         = swapchain->image_format,
@@ -155,7 +153,8 @@ RenderPass *render_pass_init_default (RenderPass *render_pass, Swapchain *swapch
 
     /* create render targets */
     GOTO_HANDLER_IF (
-        !default_render_pass_create_render_targets (render_pass, swapchain),
+        !default_render_pass_create_framebuffers (render_pass, swapchain) ||
+            !render_pass_create_frame_data (render_pass),
         INIT_FAILED,
         "Failed to create render targets for render pass\n"
     );
@@ -207,7 +206,8 @@ RenderPass *render_pass_deinit (RenderPass *render_pass) {
 
     VkDevice device = vk.device.logical;
 
-    render_pass_destroy_render_targets (render_pass);
+    render_pass_destroy_framebuffers (render_pass);
+    render_pass_destroy_frame_data (render_pass);
 
     vkDestroyRenderPass (device, render_pass->render_pass, Null);
 
@@ -221,7 +221,7 @@ RenderPass *render_pass_deinit (RenderPass *render_pass) {
 /**************************************************************************************************/
 
 /**
- * @b Create render targets for this renderpass, and store them back into the @c RenderPass object.
+ * @b Create framebuffers. 
  *
  * @param render_pass @c RenderPass object to create render targets for 
  * @param swapchain 
@@ -230,31 +230,15 @@ RenderPass *render_pass_deinit (RenderPass *render_pass) {
  * @return @c Null otherwise.
  * */
 static inline RenderPass *
-    default_render_pass_create_render_targets (RenderPass *render_pass, Swapchain *swapchain) {
+    default_render_pass_create_framebuffers (RenderPass *render_pass, Swapchain *swapchain) {
     RETURN_VALUE_IF (!render_pass || !swapchain, Null, ERR_INVALID_ARGUMENTS);
 
     VkDevice device = vk.device.logical;
 
     /* create space for render target */
-    render_pass->render_target_count = swapchain->image_count;
-    render_pass->render_targets =
-        REALLOCATE (render_pass->render_targets, RenderTarget, render_pass->render_target_count);
-    RETURN_VALUE_IF (!render_pass->render_targets, Null, ERR_OUT_OF_MEMORY);
-
-    VkCommandPoolCreateInfo command_pool_create_info = {
-        .sType            = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-        .pNext            = Null,
-        .flags            = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT,
-        .queueFamilyIndex = vk.device.graphics_queue.family_index
-    };
-
-    VkCommandBufferAllocateInfo command_buffer_allocate_info = {
-        .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-        .pNext              = Null,
-        .commandPool        = VK_NULL_HANDLE,
-        .level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-        .commandBufferCount = 1
-    };
+    render_pass->framebuffer_count = swapchain->image_count;
+    render_pass->framebuffers      = ALLOCATE (VkFramebuffer, render_pass->framebuffer_count);
+    RETURN_VALUE_IF (!render_pass->framebuffers, Null, ERR_OUT_OF_MEMORY);
 
     VkFramebufferCreateInfo framebuffer_create_info = {
         .sType           = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
@@ -268,48 +252,27 @@ static inline RenderPass *
         .layers          = 1
     };
 
-    /* iterator */
-    RenderTarget *render_target = render_pass->render_targets;
-
     /* create command pool and buffer */
-    for (Size s = 0; s < render_pass->render_target_count; s++) {
-        VkResult res = vkCreateCommandPool (
-            device,
-            &command_pool_create_info,
-            Null,
-            &render_target->command.pool
-        );
-        RETURN_VALUE_IF (res != VK_SUCCESS, Null, "Failed to create Command Pool. RET = %d\n", res);
-
-        /* allocate command buffer for frame */
-        command_buffer_allocate_info.commandPool = render_target->command.pool;
-        VkCommandBuffer cmdbuf                   = VK_NULL_HANDLE;
-        res = vkAllocateCommandBuffers (device, &command_buffer_allocate_info, &cmdbuf);
-        render_target->command.buffer = cmdbuf;
-        RETURN_VALUE_IF (
-            res != VK_SUCCESS,
-            Null,
-            "Failed to allocate command buffers for a render target. RET = %d\n",
-            res
-        );
-
+    for (Size s = 0; s < render_pass->framebuffer_count; s++) {
         /* create framebuffer for each render target */
         framebuffer_create_info.pAttachments = (VkImageView[]) {
             swapchain->images[s].view,  /* color attachment */
             swapchain->depth_image.view /* depth-stencil attachment */
         };
-        VkFramebuffer framebuffer = VK_NULL_HANDLE;
-        res = vkCreateFramebuffer (device, &framebuffer_create_info, Null, &framebuffer);
-        render_pass->render_targets[s].framebuffer = framebuffer;
+
+        VkResult res = vkCreateFramebuffer (
+            device,
+            &framebuffer_create_info,
+            Null,
+            render_pass->framebuffers + s
+        );
+
         RETURN_VALUE_IF (
             res != VK_SUCCESS,
             Null,
             "Failed to create framebuffer for a render target. RET = %d\n",
             res
         );
-
-        /* move on to next render target */
-        render_target++;
     }
 
     return render_pass;
@@ -318,34 +281,183 @@ static inline RenderPass *
 /**
  * @b Destroy @c RenderPass @c RenderTarget objects.
  * */
-static inline RenderPass *render_pass_destroy_render_targets (RenderPass *render_pass) {
+static inline RenderPass *render_pass_destroy_framebuffers (RenderPass *render_pass) {
     RETURN_VALUE_IF (!render_pass, Null, ERR_INVALID_ARGUMENTS);
 
     VkDevice device = vk.device.logical;
 
+    vkDeviceWaitIdle (device);
+
     /* destroy render target member objects */
-    if (render_pass->render_targets) {
-        for (Size s = 0; s < render_pass->render_target_count; s++) {
-            RenderTarget *rt = render_pass->render_targets + s;
-
-            if (rt->framebuffer) {
-                vkDestroyFramebuffer (device, rt->framebuffer, Null);
-            }
-
-            if (rt->command.pool) {
-                vkDestroyCommandPool (device, rt->command.pool, Null);
+    if (render_pass->framebuffers) {
+        for (Size s = 0; s < render_pass->framebuffer_count; s++) {
+            if (render_pass->framebuffers[s]) {
+                vkDestroyFramebuffer (device, render_pass->framebuffers[s], Null);
+                render_pass->framebuffers[s] = VK_NULL_HANDLE;
             }
         }
 
-        /* invalidate contents */
-        memset (
-            render_pass->render_targets,
-            0,
-            sizeof (RenderTarget) * render_pass->render_target_count
-        );
-
-        FREE (render_pass->render_targets);
+        FREE (render_pass->framebuffers);
     }
+
+    return render_pass;
+}
+
+/**
+ * @b Create @c FrameData objects for command recording and synchronization.
+ *
+ * @param render_pass @c RenderPass object to create render targets for 
+ *
+ * @return @c render_pass on success.
+ * @return @c Null otherwise.
+ * */
+static inline RenderPass *render_pass_create_frame_data (RenderPass *render_pass) {
+    RETURN_VALUE_IF (!render_pass, Null, ERR_INVALID_ARGUMENTS);
+
+    VkDevice device = vk.device.logical;
+
+    /* iterator */
+    FrameData *frame_data = render_pass->frame_data;
+
+    /* create command pool and buffer */
+    for (Size s = 0; s < FRAME_LIMIT; s++) {
+        /* create command pool */
+        {
+            /* directly reset command pool, instead of resetting buffers separately */
+            VkCommandPoolCreateInfo command_pool_create_info = {
+                .sType            = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+                .pNext            = Null,
+                .flags            = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT,
+                .queueFamilyIndex = vk.device.graphics_queue.family_index
+            };
+
+            VkResult res = vkCreateCommandPool (
+                device,
+                &command_pool_create_info,
+                Null,
+                &frame_data->command.pool
+            );
+
+            RETURN_VALUE_IF (
+                res != VK_SUCCESS,
+                Null,
+                "Failed to create Command Pool. RET = %d\n",
+                res
+            );
+        }
+
+        /* allocate command buffer for frame */
+        {
+            VkCommandBufferAllocateInfo command_buffer_allocate_info = {
+                .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+                .pNext              = Null,
+                .commandPool        = frame_data->command.pool,
+                .level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+                .commandBufferCount = 1
+            };
+
+            VkResult res = vkAllocateCommandBuffers (
+                device,
+                &command_buffer_allocate_info,
+                &frame_data->command.buffer
+            );
+
+            RETURN_VALUE_IF (
+                res != VK_SUCCESS,
+                Null,
+                "Failed to allocate command buffers for a render target. RET = %d\n",
+                res
+            );
+        }
+
+        /* init sync structures */
+        {
+            VkFenceCreateInfo fence_create_info = {
+                .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+                .pNext = 0,
+                .flags = VK_FENCE_CREATE_SIGNALED_BIT
+            };
+
+            VkResult res =
+                vkCreateFence (device, &fence_create_info, Null, &frame_data->sync.render_fence);
+            RETURN_VALUE_IF (res != VK_SUCCESS, Null, "Failed to create Fence. RET = %d\n", res);
+
+            VkSemaphoreCreateInfo semaphore_create_info =
+                {.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO, .pNext = Null, .flags = 0};
+
+            res = vkCreateSemaphore (
+                device,
+                &semaphore_create_info,
+                Null,
+                &frame_data->sync.render_semaphore
+            );
+            RETURN_VALUE_IF (
+                res != VK_SUCCESS,
+                Null,
+                "Failed to create Semaphore. RET = %d\n",
+                res
+            );
+
+            res = vkCreateSemaphore (
+                device,
+                &semaphore_create_info,
+                Null,
+                &frame_data->sync.present_semaphore
+            );
+            RETURN_VALUE_IF (
+                res != VK_SUCCESS,
+                Null,
+                "Failed to create Semaphore. RET = %d\n",
+                res
+            );
+        }
+
+        /* move on to next frame_data */
+        frame_data++;
+    }
+
+    return render_pass;
+}
+
+/**
+ * @b Destroy @c RenderPass @c RenderTarget objects.
+ *
+ * @param render_pass 
+ * 
+ * @return @c render_pass on success.
+ * @return @c Null otherwise.
+ * */
+static inline RenderPass *render_pass_destroy_frame_data (RenderPass *render_pass) {
+    RETURN_VALUE_IF (!render_pass, Null, ERR_INVALID_ARGUMENTS);
+
+    VkDevice device = vk.device.logical;
+
+    vkDeviceWaitIdle (device);
+
+    FrameData *frame_data = render_pass->frame_data;
+
+    /* destroy frame data member objects i*/
+    for (Size s = 0; s < FRAME_LIMIT; s++) {
+        if (frame_data->command.pool) {
+            vkDestroyCommandPool (device, frame_data->command.pool, Null);
+        }
+
+        if (frame_data->sync.render_fence) {
+            vkDestroyFence (device, frame_data->sync.render_fence, Null);
+        }
+
+        if (frame_data->sync.render_semaphore) {
+            vkDestroySemaphore (device, frame_data->sync.render_semaphore, Null);
+        }
+
+        if (frame_data->sync.present_semaphore) {
+            vkDestroySemaphore (device, frame_data->sync.present_semaphore, Null);
+        }
+
+        frame_data++;
+    }
+
+    memset (render_pass->frame_data, 0, sizeof (FrameData) * FRAME_LIMIT);
 
     return render_pass;
 }
@@ -363,10 +475,27 @@ static inline Bool default_render_pass_swapchain_reinit_event_handler (
     RETURN_VALUE_IF (!render_pass || !swapchain, False, ERR_INVALID_ARGUMENTS);
 
     RETURN_VALUE_IF (
-        !render_pass_destroy_render_targets (render_pass) ||
-            !default_render_pass_create_render_targets (render_pass, swapchain),
+        !render_pass_destroy_framebuffers (render_pass),
         False,
-        "Failed to recreate swapchain render targets\n"
+        "Failed to destroy render pass framebuffers\n"
+    );
+
+    RETURN_VALUE_IF (
+        !render_pass_destroy_frame_data (render_pass),
+        False,
+        "Failed to destroy render pass frame data\n"
+    );
+
+    RETURN_VALUE_IF (
+        !default_render_pass_create_framebuffers (render_pass, swapchain),
+        False,
+        "Failed to create default render pass framebuffers\n"
+    );
+
+    RETURN_VALUE_IF (
+        !render_pass_create_frame_data (render_pass),
+        False,
+        "Failed to create render pass frame data\n"
     );
 
     return True;

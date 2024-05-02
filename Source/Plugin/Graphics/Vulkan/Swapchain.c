@@ -54,18 +54,7 @@
 #include <memory.h>
 #include <vulkan/vulkan_core.h>
 
-/**************************************************************************************************/
-/********************************** PRIVATE METHOD DECLARATIONS ***********************************/
-/**************************************************************************************************/
-
-static inline SwapchainSyncObjects *swapchain_sync_objects_init (SwapchainSyncObjects *sync);
-static inline SwapchainSyncObjects *swapchain_sync_objects_deinit (SwapchainSyncObjects *sync);
-
 NEW_VECTOR_TYPE (SwapchainReinitHandlerData, reinit_handler);
-
-/**************************************************************************************************/
-/*********************************** PUBLIC METHOD DEFINITIONS ************************************/
-/**************************************************************************************************/
 
 /**
  * @b Initialize given Swapchain object.
@@ -82,8 +71,8 @@ Swapchain *swapchain_init (Swapchain *swapchain, XwWindow *win) {
     VkDevice         device = vk.device.logical;
     VkPhysicalDevice gpu    = vk.device.physical;
 
-    /* create surface for the swapchain */
-    {
+    /* create surface for the swapchain only if it's not already created */
+    if (!swapchain->surface) {
         VkResult res = xw_window_create_vulkan_surface (win, vk.instance, &swapchain->surface);
         GOTO_HANDLER_IF (
             res != VK_SUCCESS,
@@ -354,22 +343,8 @@ Swapchain *swapchain_init (Swapchain *swapchain, XwWindow *win) {
         "Failed to create swapchain depth image\n"
     );
 
-    /* init sync objects */
-    {
-        swapchain->sync_objects = ALLOCATE (SwapchainSyncObjects, swapchain->image_count);
-        GOTO_HANDLER_IF (!swapchain->sync_objects, INIT_FAILED, ERR_OUT_OF_MEMORY);
-
-        for (Size s = 0; s < swapchain->image_count; s++) {
-            GOTO_HANDLER_IF (
-                !swapchain_sync_objects_init (swapchain->sync_objects + s),
-                INIT_FAILED,
-                "Failed to init sync objects for swapchain.\n"
-            );
-        }
-    }
-
     /* create reinit handler data vector with initially 4 entries */
-    {
+    if (!swapchain->reinit_handlers) {
         swapchain->reinit_handlers = reinit_handler_vector_create (
             4,                                  /* initial count */
             &swapchain->reinit_handler_capacity /* get capacity */
@@ -405,17 +380,6 @@ Swapchain *swapchain_deinit (Swapchain *swapchain) {
 
     /* if device was ever created then start destroying possibly created objects */
     vkDeviceWaitIdle (device);
-
-    /* deinit sync objects */
-    if (swapchain->sync_objects) {
-        for (Size s = 0; s < swapchain->image_count; s++) {
-            swapchain_sync_objects_deinit (swapchain->sync_objects + s);
-        }
-
-        /* make contents invalid */
-        memset (swapchain->sync_objects, 0, sizeof (SwapchainSyncObjects) * swapchain->image_count);
-        FREE (swapchain->sync_objects);
-    }
 
     /* destroy depth image for this swapchain */
     if (swapchain->depth_image.image) {
@@ -478,13 +442,6 @@ Swapchain *swapchain_reinit (Swapchain *swapchain, XwWindow *win) {
 
     vkDeviceWaitIdle (device);
 
-    /* deinit sync objects */
-    if (swapchain->sync_objects) {
-        for (Size s = 0; s < swapchain->image_count; s++) {
-            swapchain_sync_objects_deinit (swapchain->sync_objects + s);
-        }
-    }
-
     /* deinit depth image */
     device_image_deinit (&swapchain->depth_image);
 
@@ -514,6 +471,12 @@ Swapchain *swapchain_reinit (Swapchain *swapchain, XwWindow *win) {
     if (swapchain->reinit_handlers) {
         for (Size s = 0; s < swapchain->reinit_handler_count; s++) {
             SwapchainReinitHandlerData *handler = swapchain->reinit_handlers + s;
+            if (!handler->handler) {
+                PRINT_ERR ("Invalid handler\n");
+                PRINT_ERR ("[0] = {%p, %p}\n", handler->handler, handler->render_pass);
+                PRINT_ERR ("[1] = {%p, %p}\n", (handler + 1)->handler, (handler + 1)->render_pass);
+                PRINT_ERR ("count = %zu\n", swapchain->reinit_handler_count);
+            }
             handler->handler (handler->render_pass, swapchain);
         }
     }
@@ -556,235 +519,4 @@ Bool swapchain_register_reinit_handler (
         (SwapchainReinitHandlerData) {.handler = handler, .render_pass = render_pass};
 
     return True;
-}
-
-/**
- * @b Begin rendering of next frame.
- *
- * @param swapchain
- * @param win
- *
- * @return On success, returns the index of next @c RenderTarget object to be used.
- * @return -1 otherwise.
- * */
-Uint32 swapchain_begin_frame (Swapchain *swapchain, XwWindow *win) {
-    RETURN_VALUE_IF (!swapchain || !win, -1, ERR_INVALID_ARGUMENTS);
-
-    VkDevice device = vk.device.logical;
-
-    /* get next image index */
-    Uint32 next_image_index = -1;
-    {
-        /* shorter name for currently in-use sync object */
-        SwapchainSyncObjects *sync = swapchain->sync_objects + swapchain->current_sync_object_index;
-
-        VkResult res = vkWaitForFences (device, 1, &sync->render_fence, True, 1e9);
-        RETURN_VALUE_IF (
-            res != VK_SUCCESS,
-            -1,
-            "Timeout (1s) while waiting for fences. RET = %d\n",
-            res
-        );
-
-        /* get next image index */
-        {
-            res = vkAcquireNextImageKHR (
-                device,
-                swapchain->swapchain,
-                1e9, /* 1e9 ns = 1 s */
-                sync->present_semaphore,
-                Null,
-                &next_image_index
-            );
-
-            /* recoverable error cases */
-            if (res == VK_SUBOPTIMAL_KHR || res == VK_ERROR_OUT_OF_DATE_KHR) {
-                RETURN_VALUE_IF (
-                    !swapchain_reinit (swapchain, win),
-                    -1,
-                    "Failed to recreate swapchain\n"
-                );
-                /* to make it continue if we succeed. */
-                res = VK_SUCCESS;
-            }
-
-            /* irrecoverable */
-            RETURN_VALUE_IF (
-                res != VK_SUCCESS,
-                -1,
-                "Failed to get next image index from swapchain. RET = %d\n",
-                res
-            );
-        }
-
-        /* need to reset fence before we use it again */
-        res = vkResetFences (device, 1, &sync->render_fence);
-        RETURN_VALUE_IF (res != VK_SUCCESS, -1, "Failed to reset fences. RET = %d\n", res);
-    }
-
-    return next_image_index;
-}
-
-/**
- * @b Submit given commands to queue and queue the current image to be presented
- *    to screen.
- *
- * @param swapchain
- * @param win
- * @param cmd Command buffer containing recorded commands.
- * @param image_index Index of image for which render commands are recorded.
- *
- * @return True on success.
- * @return False otherwise.
- * */
-Bool swapchain_end_frame (
-    Swapchain      *swapchain,
-    XwWindow       *win,
-    VkCommandBuffer cmd,
-    Uint32          image_index
-) {
-    RETURN_VALUE_IF (
-        !swapchain || !win || !cmd || (image_index == (Uint32)-1),
-        False,
-        ERR_INVALID_ARGUMENTS
-    );
-
-    SwapchainSyncObjects *sync = swapchain->sync_objects + swapchain->current_sync_object_index;
-
-    /* submit for rendering */
-    {
-        /* wait when rendered image is being presented */
-        VkPipelineStageFlags wait_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-
-        VkSubmitInfo submit_info = {
-            .sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-            .pNext                = Null,
-            .waitSemaphoreCount   = 1,
-            .pWaitSemaphores      = &sync->present_semaphore,
-            .pWaitDstStageMask    = &wait_stage,
-            .signalSemaphoreCount = 1,
-            .pSignalSemaphores    = &sync->render_semaphore,
-            .commandBufferCount   = 1,
-            .pCommandBuffers      = &cmd
-        };
-
-        VkResult res =
-            vkQueueSubmit (vk.device.graphics_queue.handle, 1, &submit_info, sync->render_fence);
-
-        RETURN_VALUE_IF (
-            res != VK_SUCCESS,
-            False,
-            "Failed to submit command buffers for execution. RET = %d\n",
-            res
-        );
-    }
-
-    /* submit for presentation to surface */
-    {
-        VkPresentInfoKHR present_info = {
-            .sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-            .pNext              = Null,
-            .swapchainCount     = 1,
-            .pSwapchains        = &swapchain->swapchain,
-            .waitSemaphoreCount = 1,
-            .pWaitSemaphores    = (VkSemaphore[]) {sync->render_semaphore},
-            .pImageIndices      = (Uint32[]) {image_index}
-        };
-
-        VkResult res = vkQueuePresentKHR (vk.device.graphics_queue.handle, &present_info);
-
-        if (res == VK_SUBOPTIMAL_KHR || res == VK_ERROR_OUT_OF_DATE_KHR) {
-            RETURN_VALUE_IF (
-                !swapchain_reinit (swapchain, win),
-                False,
-                "Failed to recreate swapchain\n"
-            );
-            res = VK_SUCCESS; /* so that next check does not fail */
-        }
-
-        RETURN_VALUE_IF (
-            res != VK_SUCCESS,
-            -1,
-            "Failed to present rendered images to surface. RET = %d\n",
-            res
-        );
-    }
-
-    /* change sync object */
-    swapchain->current_sync_object_index =
-        (swapchain->current_sync_object_index + 1) % swapchain->image_count;
-
-    return True;
-}
-
-/**************************************************************************************************/
-/*********************************** PRIVATE METHOD DEFINITIONS ***********************************/
-/**************************************************************************************************/
-
-/**
- * @b Initialize given @c SwapchainSyncObjects.
- *
- * @param sync.
- *
- * @return @c sync on success.
- * @return @c Null otherwise.
- * */
-static inline SwapchainSyncObjects *swapchain_sync_objects_init (SwapchainSyncObjects *sync) {
-    RETURN_VALUE_IF (!sync, Null, ERR_INVALID_ARGUMENTS);
-
-    VkDevice          device            = vk.device.logical;
-    VkFenceCreateInfo fence_create_info = {
-        .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
-        .pNext = 0,
-        .flags = VK_FENCE_CREATE_SIGNALED_BIT
-    };
-
-    VkResult res = vkCreateFence (device, &fence_create_info, Null, &sync->render_fence);
-    GOTO_HANDLER_IF (res != VK_SUCCESS, INIT_FAILED, "Failed to create Fence. RET = %d\n", res);
-
-    VkSemaphoreCreateInfo semaphore_create_info =
-        {.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO, .pNext = Null, .flags = 0};
-
-    res = vkCreateSemaphore (device, &semaphore_create_info, Null, &sync->render_semaphore);
-    GOTO_HANDLER_IF (res != VK_SUCCESS, INIT_FAILED, "Failed to create Semaphore. RET = %d\n", res);
-
-    res = vkCreateSemaphore (device, &semaphore_create_info, Null, &sync->present_semaphore);
-    GOTO_HANDLER_IF (res != VK_SUCCESS, INIT_FAILED, "Failed to create Semaphore. RET = %d\n", res);
-
-    return sync;
-
-INIT_FAILED:
-    swapchain_sync_objects_deinit (sync);
-    return Null;
-}
-
-/**
- * @b De-initialize given @c SwapchainSyncObjects.
- *
- * @param sync.
- *
- * @return @c sync on success.
- * @return @c Null otherwise.
- * */
-static inline SwapchainSyncObjects *swapchain_sync_objects_deinit (SwapchainSyncObjects *sync) {
-    RETURN_VALUE_IF (!sync, Null, ERR_INVALID_ARGUMENTS);
-
-    VkDevice device = vk.device.logical;
-
-    vkDeviceWaitIdle (device);
-
-    if (sync->present_semaphore) {
-        vkDestroySemaphore (device, sync->present_semaphore, Null);
-    }
-    if (sync->render_semaphore) {
-        vkDestroySemaphore (device, sync->render_semaphore, Null);
-    }
-    if (sync->render_fence) {
-        vkDestroyFence (device, sync->render_fence, Null);
-    }
-
-    /* restore to invalid state */
-    memset (sync, 0, sizeof (SwapchainSyncObjects));
-
-    return sync;
 }
