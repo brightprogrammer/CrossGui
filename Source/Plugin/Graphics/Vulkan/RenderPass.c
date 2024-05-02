@@ -167,7 +167,7 @@ RenderPass *render_pass_init_default (RenderPass *render_pass, Swapchain *swapch
             swapchain
         ),
         INIT_FAILED,
-        "Failed to create default graphics pipeline for default renderpass."
+        "Failed to create default graphics pipeline for default renderpass.\n"
     );
 
     /* finally register this renderpass to handle swapchain reinit events */

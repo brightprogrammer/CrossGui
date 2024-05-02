@@ -471,13 +471,11 @@ Swapchain *swapchain_reinit (Swapchain *swapchain, XwWindow *win) {
     if (swapchain->reinit_handlers) {
         for (Size s = 0; s < swapchain->reinit_handler_count; s++) {
             SwapchainReinitHandlerData *handler = swapchain->reinit_handlers + s;
-            if (!handler->handler) {
-                PRINT_ERR ("Invalid handler\n");
-                PRINT_ERR ("[0] = {%p, %p}\n", handler->handler, handler->render_pass);
-                PRINT_ERR ("[1] = {%p, %p}\n", (handler + 1)->handler, (handler + 1)->render_pass);
-                PRINT_ERR ("count = %zu\n", swapchain->reinit_handler_count);
-            }
-            handler->handler (handler->render_pass, swapchain);
+            RETURN_VALUE_IF (
+                !handler->handler (handler->render_pass, swapchain),
+                Null,
+                "One of the render pass(es) failed to handle swapchain-reinit-event.\n"
+            );
         }
     }
 

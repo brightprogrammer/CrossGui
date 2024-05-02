@@ -40,13 +40,16 @@
 
 /* local includes */
 #include "Device.h"
-#include "Renderer.h"
 
 typedef struct Vulkan {
     VkInstance        instance;  /**< @b Our connection with vulkan */
     VkPhysicalDevice *gpus;      /**< @b GPU handles */
     Uint32            gpu_count; /**< @b Total number of usable physical devices on host. */
     Device            device;    /**< @b Default device in use by the plugin. */
+
+    struct {
+        DeviceBuffer rect_2d;
+    } shapes;
 } Vulkan;
 
 /**

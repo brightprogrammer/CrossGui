@@ -36,6 +36,7 @@
 #include "Anvie/Common.h"
 #include "Anvie/CrossGui/Plugin/Graphics/API.h"
 #include "GraphicsContext.h"
+#include "RenderPass.h"
 #include "Swapchain.h"
 #include "Vulkan.h"
 
@@ -51,13 +52,13 @@ typedef struct BeginEndInfo {
 /********************************** PRIVATE METHOD DECLARATIONS ***********************************/
 /**************************************************************************************************/
 
-static inline XuiRenderStatus begin_frame (
+static XuiRenderStatus begin_frame (
     RenderPass   *render_pass,
     Swapchain    *swapchain,
     XwWindow     *win,
     BeginEndInfo *begin_info
 );
-static inline XuiRenderStatus end_frame (
+static XuiRenderStatus end_frame (
     RenderPass   *render_pass,
     Swapchain    *swapchain,
     XwWindow     *win,
@@ -80,7 +81,7 @@ XuiRenderStatus draw_rect_2d (XuiGraphicsContext *gctx, XwWindow *win, Rect2D re
     /* begin frame rendering and command recording,
      * will get new frame data in info struct */
     XuiRenderStatus status = begin_frame (render_pass, swapchain, win, &info);
-    if (status == XUI_RENDER_STATUS_CONTINUE || status == XUI_RENDER_STATUS_ERR) {
+    if (status != XUI_RENDER_STATUS_OK) {
         return status;
     }
 
@@ -105,6 +106,21 @@ XuiRenderStatus draw_rect_2d (XuiGraphicsContext *gctx, XwWindow *win, Rect2D re
 
         vkCmdBeginRenderPass (cmd, &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
     }
+
+    vkCmdBindPipeline (
+        cmd,
+        VK_PIPELINE_BIND_POINT_GRAPHICS,
+        render_pass->pipelines.default_graphics.pipeline.pipeline
+    );
+
+    vkCmdBindVertexBuffers (
+        cmd,
+        0,
+        1,
+        (VkBuffer[]) {vk.shapes.rect_2d.buffer},
+        (VkDeviceSize[]) {0}
+    );
+    vkCmdDraw (cmd, 6, 1, 0, 0);
 
     /* end render pass */
     vkCmdEndRenderPass (cmd);
@@ -136,7 +152,7 @@ XuiRenderStatus draw_rect_2d (XuiGraphicsContext *gctx, XwWindow *win, Rect2D re
  * @return @c XUI_RENDER_STATUS_CONTINUE if a recoverable error occured.
  * @return @c XUI_RENDER_STATUS_ERR otherwise.
  * */
-static inline XuiRenderStatus begin_frame (
+static XuiRenderStatus begin_frame (
     RenderPass   *render_pass,
     Swapchain    *swapchain,
     XwWindow     *win,
@@ -150,7 +166,7 @@ static inline XuiRenderStatus begin_frame (
 
     VkDevice device = vk.device.logical;
 
-    FrameData *frame_data  = render_pass->frame_data + render_pass->frame_index;
+    FrameData *frame_data  = render_pass->frame_data + (render_pass->frame_index++ % FRAME_LIMIT);
     begin_info->frame_data = frame_data;
 
     /* get next image index */
@@ -180,7 +196,7 @@ static inline XuiRenderStatus begin_frame (
                 RETURN_VALUE_IF (
                     !swapchain_reinit (swapchain, win),
                     XUI_RENDER_STATUS_ERR,
-                    "Failed to recreate swapchain\n"
+                    "Failed to reinit swapchain\n"
                 );
 
                 return XUI_RENDER_STATUS_CONTINUE;
@@ -238,6 +254,12 @@ static inline XuiRenderStatus begin_frame (
         );
     }
 
+    RETURN_VALUE_IF (
+        begin_info->framebuffer == VK_NULL_HANDLE,
+        XUI_RENDER_STATUS_ERR,
+        "Framebuffer is NULL????\n"
+    );
+
     return XUI_RENDER_STATUS_OK;
 }
 
@@ -256,13 +278,17 @@ static inline XuiRenderStatus begin_frame (
  * @return @c XUI_RENDER_STATUS_CONTINUE if a recoverable error occured.
  * @return @c XUI_RENDER_STATUS_ERR otherwise.
  * */
-static inline XuiRenderStatus end_frame (
+static XuiRenderStatus end_frame (
     RenderPass   *render_pass,
     Swapchain    *swapchain,
     XwWindow     *win,
     BeginEndInfo *end_info
 ) {
-    RETURN_VALUE_IF (!render_pass || !win || !swapchain || !end_info, False, ERR_INVALID_ARGUMENTS);
+    RETURN_VALUE_IF (
+        !render_pass || !win || !swapchain || !end_info,
+        XUI_RENDER_STATUS_ERR,
+        ERR_INVALID_ARGUMENTS
+    );
 
     FrameData      *frame_data  = end_info->frame_data;
     Uint32          image_index = end_info->image_index;
@@ -271,7 +297,7 @@ static inline XuiRenderStatus end_frame (
     VkResult res = vkEndCommandBuffer (cmd);
     RETURN_VALUE_IF (
         res != VK_SUCCESS,
-        -1,
+        XUI_RENDER_STATUS_ERR,
         "Failed to end command buffer recording. RET = %d\n",
         res
     );
@@ -302,7 +328,7 @@ static inline XuiRenderStatus end_frame (
 
         RETURN_VALUE_IF (
             res != VK_SUCCESS,
-            False,
+            XUI_RENDER_STATUS_ERR,
             "Failed to submit command buffers for execution. RET = %d\n",
             res
         );
@@ -325,21 +351,20 @@ static inline XuiRenderStatus end_frame (
         if (res == VK_SUBOPTIMAL_KHR || res == VK_ERROR_OUT_OF_DATE_KHR) {
             RETURN_VALUE_IF (
                 !swapchain_reinit (swapchain, win),
-                False,
-                "Failed to recreate swapchain\n"
+                XUI_RENDER_STATUS_ERR,
+                "Failed to reinit swapchain\n"
             );
-            res = VK_SUCCESS; /* so that next check does not fail */
+
+            return XUI_RENDER_STATUS_CONTINUE;
         }
 
         RETURN_VALUE_IF (
             res != VK_SUCCESS,
-            False,
+            XUI_RENDER_STATUS_ERR,
             "Failed to present rendered images to surface. RET = %d\n",
             res
         );
     }
 
-    render_pass->frame_index = (render_pass->frame_index + 1) % FRAME_LIMIT;
-
-    return True;
+    return XUI_RENDER_STATUS_OK;
 }

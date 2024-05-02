@@ -35,22 +35,21 @@
 
 #include <Anvie/Types.h>
 
-typedef struct Position {
+typedef struct Position2D {
     Float32 x;
     Float32 y;
-    Float32 z;
-} Position;
+} Position2D;
 
-typedef struct Scale {
-    Float32 l; /**< @b Scale length of shape by this factor. */
+typedef struct Scale2D {
+    Float32 w; /**< @b Scale width of shape by this factor. */
     Float32 h; /**< @b Scale height of shape by this factor. */
-    Float32 b; /**< @b Scale breadth of shape by this factor. 2D shapes don't use this dimension. */
-} Scale;
+} Scale2D;
 
-typedef struct Rect {
-    Position position; /**< @b Rectangle position. */
-    Scale    scale;    /**< @b Scale position. */
-} Rect2D, Rect3D;
+typedef struct Rect2D {
+    Position2D position; /**< @b Rectangle position. */
+    Scale2D    scale;    /**< @b Scale position. */
+    Float32    depth;    /**< @b Depth (z) at which this rect must be rendered. */
+} Rect2D;
 
 typedef struct Color {
     Float32 r;
@@ -58,10 +57,5 @@ typedef struct Color {
     Float32 b;
     Float32 a;
 } Color;
-
-typedef struct Vertex {
-    Position position;
-    Color    color;
-} Vertex2D;
 
 #endif // ANVIE_CROSSGUI_GRAPHICS_H

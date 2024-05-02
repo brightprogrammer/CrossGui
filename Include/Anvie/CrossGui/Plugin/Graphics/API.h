@@ -51,15 +51,6 @@ typedef enum XuiRenderStatus {
     XUI_RENDER_STATUS_UNKNOWN = 0,
 
     /**
-    * @b Everything's ok! keep going...
-    *
-    * This return value from a render (draw) method means the draw
-    * call was processed successfully and user code can continue to
-    * render.
-    * */
-    XUI_RENDER_STATUS_OK,
-
-    /**
      * @b Something bad happened, and it's not recoverable. Cannot continue.
      * 
      * When a render (draw) method returns this value, the plugin must not call
@@ -67,6 +58,15 @@ typedef enum XuiRenderStatus {
      * solve this is probably plugin dependent.
      * */
     XUI_RENDER_STATUS_ERR = XUI_RENDER_STATUS_UNKNOWN,
+
+    /**
+    * @b Everything's ok! keep going...
+    *
+    * This return value from a render (draw) method means the draw
+    * call was processed successfully and user code can continue to
+    * render.
+    * */
+    XUI_RENDER_STATUS_OK,
 
     /**
      * @b Something bad happened, but continue to recover from it. 

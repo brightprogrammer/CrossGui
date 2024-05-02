@@ -1,12 +1,13 @@
-#include "Anvie/CrossGui/Plugin/Graphics/API.h"
-#include "Anvie/CrossGui/Plugin/Graphics/Graphics.h"
-
 #include <Anvie/Common.h>
-#include <Anvie/CrossWindow/Event.h>
-#include <Anvie/CrossWindow/Window.h>
 #include <Anvie/Types.h>
 
+/* crosswindow */
+#include <Anvie/CrossWindow/Event.h>
+#include <Anvie/CrossWindow/Window.h>
+
 /* crossgui */
+#include <Anvie/CrossGui/Plugin/Graphics/API.h>
+#include <Anvie/CrossGui/Plugin/Graphics/Graphics.h>
 #include <Anvie/CrossGui/Plugin/Plugin.h>
 
 /* for plugin loading */
@@ -48,27 +49,12 @@ int main (Int32 argc, CString *argv) {
 
         if (resized) {
             gplug->context_resize (gctx, xwin);
-            PRINT_ERR ("Window resized!\n");
-            fflush (stderr);
         }
 
-        gplug->draw_rect_2d (gctx, xwin, (Rect2D) {0}, (Color) {1, 1, 0, 1});
+        if (!gplug->draw_rect_2d (gctx, xwin, (Rect2D) {0}, (Color) {1, 1, 0, 1})) {
+            break;
+        }
     }
-
-    /* TODO: port SRB objects as well to vulkan plugin.
-     * We need some way to create graphics pipeline using plugins. 
-     * Need to find some way to link SRB and Pipeline.
-     * It is possible to keep SRB and Pipeline as opaque objects, as pipeline is just a 
-     * bunch of shaders executed in a particular order, we can emulate it in any graphics API.
-     * SRB is also possible in opaque manner.
-     *
-     * NOTE: Create the pipelines statically inside each plugin.
-     * We'll need some kind of agreement between the XuiGraphics API and the plugins.
-     * For now, just continue with the single pipeline. We don't even need to specify which
-     * pipeline the graphics plugin must use for rendering.
-     *
-     * Same goes for renderpasses. Create them statically and later on we'll refactor!
-     * */
 
     gplug->context_destroy (gctx);
     xw_window_destroy (xwin);

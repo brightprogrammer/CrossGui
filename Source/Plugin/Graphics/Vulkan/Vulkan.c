@@ -41,8 +41,10 @@
 /* crossgui */
 #include <Anvie/CrossGui/Plugin/Graphics/Graphics.h>
 #include <Anvie/CrossGui/Plugin/Plugin.h>
+#include <vulkan/vulkan_core.h>
 
 /* local includes */
+#include "Anvie/CrossGui/Graphics.h"
 #include "Device.h"
 #include "GraphicsContext.h"
 #include "Renderer.h"
@@ -50,9 +52,25 @@
 
 Vulkan vk = {0};
 
+/**************************************************************************************************/
+/********************************** PRIVATE METHOD DECLARATIONS ***********************************/
+/**************************************************************************************************/
+
 static Bool init();
 static Bool deinit();
 
+/**************************************************************************************************/
+/****************************************** API METHODS *******************************************/
+/**************************************************************************************************/
+
+/**
+ * @b Plugin init method definition required by the XuiPlugin API.
+ *
+ * The init method initializes the vulkan graphics api.
+ *
+ * @return @c True on success.
+ * @return @c False otherwise.
+ * */
 static Bool init() {
     /* create vulkan instance */
     {
@@ -148,6 +166,38 @@ static Bool init() {
     /* initialize commonly shared device */
     GOTO_HANDLER_IF (!device_init(), INIT_FAILED, "Failed to initialize logical device.\n");
 
+    /* initialize shape VertexBufferObjects */
+    {
+        Position2D v1 = {.x = 1.f, .y = 1.f};
+        Position2D v2 = {.x = 1.f, .y = -1.f};
+        Position2D v3 = {.x = -1.f, .y = -1.f};
+        Position2D v4 = {.x = -1.f, .y = 1.f};
+
+        Position2D rect_2d_vert_positions[] = {v1, v2, v3, v1, v3, v4};
+
+        GOTO_HANDLER_IF (
+            !device_buffer_init (
+                &vk.shapes.rect_2d,
+                VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                sizeof (rect_2d_vert_positions),
+                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                vk.device.graphics_queue.family_index
+            ),
+            INIT_FAILED,
+            "Failed to initialize shapes vertex data\n"
+        );
+
+        GOTO_HANDLER_IF (
+            !device_buffer_memcpy (
+                &vk.shapes.rect_2d,
+                &rect_2d_vert_positions,
+                sizeof (rect_2d_vert_positions)
+            ),
+            INIT_FAILED,
+            "Failed to upload shapes data to gpu\n"
+        );
+    }
+
     return True;
 
 INIT_FAILED:
@@ -155,7 +205,20 @@ INIT_FAILED:
     return False;
 }
 
+/**
+ * @b Plugin deinit method definition required by the XuiPlugin API.
+ *
+ * The deinit method deinitializes everything that was initialized by the init method.
+ *
+ * @return @c True on success.
+ * @return @c False otherwise.
+ * */
 static Bool deinit() {
+    /* deinit shapes */
+    if (vk.shapes.rect_2d.buffer) {
+        device_buffer_deinit (&vk.shapes.rect_2d);
+    }
+
     /* deinit logical device if created */
     if (vk.device.logical) {
         device_deinit();
@@ -177,6 +240,10 @@ static Bool deinit() {
 
     return True;
 }
+
+/**************************************************************************************************/
+/****************************************** PLUGIN DATA *******************************************/
+/**************************************************************************************************/
 
 /* Describe callbacks in graphics plugin data */
 static XuiGraphicsPlugin vulkan_graphics_plugin_data = {

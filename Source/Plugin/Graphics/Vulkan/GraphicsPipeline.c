@@ -34,6 +34,7 @@
 #include <Anvie/CrossGui/Graphics.h>
 
 /* local includes */
+#include "Anvie/Common.h"
 #include "GraphicsPipeline.h"
 #include "RenderPass.h"
 #include "Swapchain.h"
@@ -246,19 +247,20 @@ GraphicsPipeline *graphics_pipeline_init_default (
                .pSpecializationInfo = Null};
         }
 
+        /*
+         * NOTE : Instead of sending vertex positions and vertex colors together, we
+         * send in position data only and send color and scale separately as a uniform.
+         * This allows reuse of position data and different color support.
+         *
+         * Therfore, we just describe position as input attribute below
+         * */
+
         /* describe how vertex data is sent to GPU */
         VkVertexInputBindingDescription vertex_binding_desc =
-            {.binding = 0, .stride = sizeof (Vertex2D), .inputRate = VK_VERTEX_INPUT_RATE_VERTEX};
+            {.binding = 0, .stride = sizeof (Position2D), .inputRate = VK_VERTEX_INPUT_RATE_VERTEX};
 
         VkVertexInputAttributeDescription vertex_attribute_desc[] = {
-            {.location = 0,
-             .binding  = 0,
-             .format   = VK_FORMAT_R32G32_SFLOAT,
-             .offset   = offsetof (Vertex2D, position)},
-            {.location = 1,
-             .binding  = 0,
-             .format   = VK_FORMAT_R32G32B32A32_SFLOAT,
-             .offset   = offsetof (Vertex2D,    color)},
+            {.location = 0, .binding = 0, .format = VK_FORMAT_R32G32_SFLOAT, .offset = 0}
         };
 
         /* describe vertex input state */
@@ -470,11 +472,11 @@ static inline VkShaderModule load_shader (VkDevice device, CString path) {
     RETURN_VALUE_IF (!device || !path, VK_NULL_HANDLE, ERR_INVALID_ARGUMENTS);
 
     FILE *file = fopen (path, "r");
-    RETURN_VALUE_IF (!file, VK_NULL_HANDLE, ERR_INVALID_ARGUMENTS);
+    RETURN_VALUE_IF (!file, VK_NULL_HANDLE, ERR_FILE_OPEN_FAILED);
 
     fseek (file, 0, SEEK_END);
     Size file_size = ftell (file);
-    GOTO_HANDLER_IF (!file_size, FILE_SIZE_ZERO, "Shader file (\"%s\") size must not be 0\n", path);
+    GOTO_HANDLER_IF (!file_size, FILE_SIZE_ZERO, ERR_FILE_READ_FAILED);
     fseek (file, 0, SEEK_SET);
 
     Uint8 *fdata = ALLOCATE (Uint8, file_size);
