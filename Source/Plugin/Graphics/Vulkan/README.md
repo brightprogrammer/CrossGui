@@ -1,5 +1,21 @@
 # CrossGui Vulkan Graphics Plugin
 
+## [[**Thu, 2nd May 2024**]]
+
+Finally refactoring finished! Phew!! A 9 commit long refactor work!
+Here are the changes in this final commit that solves all problems:
+
+- Removed `RenderTarget` concept, and moved on with approach followed by tutorials.
+  I have now a `FrameData` that stores sync objects and command objects. I realize
+  after some struggle that it's not possible to separate the command and sync objects,
+  because sync objects _is_ for the command recording itself.
+- `SwapchainSyncObjects` and `RenderTarget` is now merged into `FrameData` with
+  framebuffers being stored separately in the `RenderPass`
+- `FRAME_LIMIT` is defined as 2 for now on top of `RenderPass.c` which can be changed,
+  but I don't think I'll require changing that anytime soon.
+
+Some things might still change, but overall the plugin is stable ;-)
+
 ## [[**Wed, 1st May 2024**]]
 
 - Moved `VkSurfaceKHR` from `XuiGraphicsContext` to `Swapchain`. This resulted in
