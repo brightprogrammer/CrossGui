@@ -212,6 +212,11 @@ XuiRenderStatus gfx_clear (XuiGraphicsContext *gctx, XwWindow *win) {
 
     /* clear next available image */
     swapchain_clear_image (swapchain, info.image_index, cmd, (VkClearColorValue) {0});
+    device_image_clear (
+        &swapchain->depth_image,
+        cmd,
+        (VkClearValue) {.depthStencil = {.depth = 1.f, .stencil = 0.f}}
+    );
 
     /* end command buffer */
     status = end_frame (render_pass, swapchain, win, &info);

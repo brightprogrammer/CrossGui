@@ -601,8 +601,14 @@ DeviceImage *
     VkImageLayout clear_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
     device_image_change_layout (image, cmd, VK_IMAGE_LAYOUT_UNDEFINED, clear_layout);
 
+    /* TODO: Implement a method to detect whether it's a depth format or not */
+
     VkImageSubresourceRange image_subrange = {
-        .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+        .aspectMask     = image->usage & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT ?
+                              VK_IMAGE_ASPECT_COLOR_BIT :
+                          image->format == VK_FORMAT_D32_SFLOAT ?
+                              VK_IMAGE_ASPECT_DEPTH_BIT :
+                              VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT,
         .baseMipLevel   = 0,
         .levelCount     = 1,
         .baseArrayLayer = 0,

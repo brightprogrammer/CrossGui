@@ -32,6 +32,7 @@
 
 /* crossgui plugin */
 #include <Anvie/CrossGui/Graphics.h>
+#include <vulkan/vulkan_core.h>
 
 /* local includes */
 #include "Anvie/Common.h"
@@ -291,8 +292,20 @@ GraphicsPipeline *graphics_pipeline_init_default (
             .alphaToOneEnable      = VK_FALSE
         };
 
-        /* TODO: describe z-fighting behavior */
-        VkPipelineDepthStencilStateCreateInfo depth_stencil_state = {0};
+        VkPipelineDepthStencilStateCreateInfo depth_stencil_state = {
+            .sType                 = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+            .pNext                 = Null,
+            .flags                 = 0,
+            .depthTestEnable       = VK_TRUE,
+            .depthWriteEnable      = VK_TRUE,
+            .depthCompareOp        = VK_COMPARE_OP_LESS,
+            .depthBoundsTestEnable = VK_FALSE,
+            .stencilTestEnable     = VK_FALSE,
+            .front                 = (VkStencilOpState) {0},
+            .back                  = (VkStencilOpState) {0},
+            .minDepthBounds        = 0,
+            .maxDepthBounds        = 1,
+        };
         depth_stencil_state.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
 
         /* we have a single color attachment in renderpass so we need this */

@@ -334,7 +334,7 @@ Swapchain *swapchain_init (Swapchain *swapchain, XwWindow *win) {
     GOTO_HANDLER_IF (
         !device_image_init (
             &swapchain->depth_image,
-            VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+            VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
             (VkExtent3D) {swapchain->image_extent.width, swapchain->image_extent.height, 1},
             VK_FORMAT_D32_SFLOAT,
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
