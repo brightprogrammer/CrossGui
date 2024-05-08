@@ -359,6 +359,8 @@ Swapchain *swapchain_init (Swapchain *swapchain, XwWindow *win) {
         );
     }
 
+    swapchain->is_reinited = True;
+
     return swapchain;
 
 INIT_FAILED:
@@ -467,6 +469,8 @@ Swapchain *swapchain_reinit (Swapchain *swapchain, XwWindow *win) {
 
     /* destroy old swapchain after recreation */
     vkDestroySwapchainKHR (device, old_swapchain, Null);
+
+    swapchain->is_reinited = True;
 
     /* After recreating the swapchain completely, ask registered RenderPass objects
      * to reinit their RenderTargets */
@@ -579,7 +583,7 @@ Swapchain *swapchain_change_image_layout (
         .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
         .pNext               = Null,
         .srcAccessMask       = 0,
-        .dstAccessMask       = 0,
+        .dstAccessMask       = VK_ACCESS_TRANSFER_WRITE_BIT,
         .oldLayout           = initial_layout,
         .newLayout           = final_layout,
         .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,

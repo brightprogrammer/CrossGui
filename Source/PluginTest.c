@@ -43,32 +43,6 @@ void draw_ui (XuiGraphicsPlugin *gplug, XuiGraphicsContext *gctx, XwWindow *xwin
         )) {
         return;
     }
-
-    if (!gplug->draw_rect_2d (
-            gctx,
-            xwin,
-            (Rect2D) {
-                .position = {0, 0.2},
-                .scale    = {0.1, 0.05},
-                .color    = {0, 1, 0, 1},
-                .depth    = 0.f
-    }
-        )) {
-        return;
-    }
-
-    if (!gplug->draw_rect_2d (
-            gctx,
-            xwin,
-            (Rect2D) {
-                .position = {0, 0.3},
-                .scale    = {0.1, 0.05},
-                .color    = {0, 0, 1, 1},
-                .depth    = 0.f
-    }
-        )) {
-        return;
-    }
 }
 
 int main (Int32 argc, CString *argv) {
@@ -109,8 +83,6 @@ int main (Int32 argc, CString *argv) {
             gplug->context_resize (gctx, xwin);
             draw_ui (gplug, gctx, xwin);
         }
-        
-        draw_ui(gplug, gctx, xwin);
     }
 
     gplug->context_destroy (gctx);

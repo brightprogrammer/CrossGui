@@ -540,7 +540,9 @@ DeviceImage *device_image_change_layout (
     VkImageSubresourceRange image_subrange = {
         .aspectMask     = image->usage & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT ?
                               VK_IMAGE_ASPECT_COLOR_BIT :
-                              VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+                          image->format == VK_FORMAT_D32_SFLOAT ?
+                              VK_IMAGE_ASPECT_DEPTH_BIT :
+                              VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT,
         .baseMipLevel   = 0,
         .levelCount     = 1,
         .baseArrayLayer = 0,

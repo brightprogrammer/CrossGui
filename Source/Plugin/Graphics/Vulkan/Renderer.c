@@ -91,7 +91,7 @@ XuiRenderStatus gfx_draw_rect_2d (XuiGraphicsContext *gctx, XwWindow *win, Rect2
 
     /* Since we're not clearing color images, the transition won't happen automatically.
      * For this, we need to transition these images ourselves before we begin renderpass */
-    if (gctx->is_resized) {
+    if (swapchain->is_reinited) {
         swapchain_change_image_layout (
             swapchain,
             info.image_index,
@@ -99,10 +99,16 @@ XuiRenderStatus gfx_draw_rect_2d (XuiGraphicsContext *gctx, XwWindow *win, Rect2
             VK_IMAGE_LAYOUT_UNDEFINED,
             VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
         );
+
+        device_image_change_layout (
+            &swapchain->depth_image,
+            cmd,
+            VK_IMAGE_LAYOUT_UNDEFINED,
+            VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+        );
     } else {
-        swapchain_change_image_layout (
-            swapchain,
-            info.image_index,
+        device_image_change_layout (
+            &swapchain->depth_image,
             cmd,
             VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
             VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
@@ -209,8 +215,6 @@ XuiRenderStatus gfx_clear (XuiGraphicsContext *gctx, XwWindow *win) {
 
     /* end command buffer */
     status = end_frame (render_pass, swapchain, win, &info);
-
-    gctx->is_resized = True;
 
     return status;
 }

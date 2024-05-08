@@ -140,6 +140,8 @@ typedef struct Swapchain {
     SwapchainReinitHandlerData *reinit_handlers;
     Size                        reinit_handler_count;    /**< @b How many have we stored? */
     Size                        reinit_handler_capacity; /**< @b How many can we store? */
+
+    Bool is_reinited;
 } Swapchain;
 
 Swapchain *swapchain_init (Swapchain *swapchain, XwWindow *win);

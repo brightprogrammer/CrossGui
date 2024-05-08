@@ -96,9 +96,6 @@ XuiGraphicsContext *graphics_context_create (XwWindow *xwin) {
         );
     }
 
-    /* initially we consider the graphics context to be resized from 0 size. */
-    gctx->is_resized = True;
-
     return gctx;
 
 GCTX_FAILED:
@@ -148,8 +145,6 @@ Bool graphics_context_resize (XuiGraphicsContext *gctx, XwWindow *xwin) {
         False,
         "Failed to resize graphics context.\n"
     );
-
-    gctx->is_resized = True;
 
     return True;
 }

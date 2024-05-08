@@ -103,26 +103,16 @@ RenderPass *render_pass_init_default (RenderPass *render_pass, Swapchain *swapch
             .flags          = 0,
             .format         = swapchain->depth_image.format,
             .samples        = VK_SAMPLE_COUNT_1_BIT,
-            .loadOp         = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+            .loadOp         = VK_ATTACHMENT_LOAD_OP_LOAD,
             .storeOp        = VK_ATTACHMENT_STORE_OP_STORE,
             .stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
             .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-            .initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED,
+            .initialLayout  = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
             .finalLayout    = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
         };
         VkAttachmentReference depth_attachment_reference = {
             .attachment = DEPTH_ATTACHMENT_IDX, /* index of depth attachment in render pass */
             .layout     = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
-        };
-
-        VkSubpassDependency external_dep = {
-            .srcSubpass      = VK_SUBPASS_EXTERNAL,
-            .dstSubpass      = 0,
-            .srcStageMask    = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-            .dstStageMask    = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-            .srcAccessMask   = 0,
-            .dstAccessMask   = 0,
-            .dependencyFlags = 0
         };
 
         VkSubpassDescription subpass = {
@@ -150,8 +140,8 @@ RenderPass *render_pass_init_default (RenderPass *render_pass, Swapchain *swapch
             .pAttachments    = render_pass_attachments,
             .subpassCount    = ARRAY_SIZE (render_pass_subpasses),
             .pSubpasses      = render_pass_subpasses,
-            .dependencyCount = 1,
-            .pDependencies   = &external_dep,
+            .dependencyCount = 0,
+            .pDependencies   = Null
         };
 
         VkResult res =
