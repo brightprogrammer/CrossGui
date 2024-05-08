@@ -42,7 +42,6 @@
 #include "GraphicsPipeline.h"
 
 /* fwd declarations */
-typedef struct RenderTarget  RenderTarget;
 typedef struct Swapchain     Swapchain;
 typedef struct RenderSubPass RenderSubPass;
 
@@ -121,7 +120,7 @@ typedef struct RenderPass {
     Size           framebuffer_count;
     VkFramebuffer *framebuffers; /**< @b RenderTarget objects in this @c RenderPass*/
 
-    Uint8    frame_index;       /**< @b Index of current frame in use. */
+    Uint8     frame_index;       /**< @b Index of current frame in use. */
     FrameData frame_data[FRAME_LIMIT];
 
     RenderPassType type;

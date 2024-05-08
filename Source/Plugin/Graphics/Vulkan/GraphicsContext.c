@@ -30,14 +30,18 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * */
 
+#include <Anvie/Common.h>
+
+/* crossgui */
+#include <Anvie/CrossGui/Graphics.h>
+
 /* local includes */
 #include "GraphicsContext.h"
-
-#include "Anvie/Common.h"
 #include "RenderPass.h"
 #include "Vulkan.h"
 
 #include <Anvie/CrossWindow/Vulkan.h>
+#include <vulkan/vulkan_core.h>
 
 
 /**
@@ -68,6 +72,33 @@ XuiGraphicsContext *graphics_context_create (XwWindow *xwin) {
         "Failed to create default renderpass for new graphics context\n"
     );
 
+    /* create uniform buffer to send GPU data */
+    {
+        GOTO_HANDLER_IF (
+            !device_buffer_init (
+                &gctx->ui_data,
+                VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                sizeof (Rect2D),
+                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+                vk.device.graphics_queue.family_index
+            ) || !gctx->ui_data.size,
+            GCTX_FAILED,
+            "Failed to create ui data uniform buffer for graphics context\n"
+        );
+
+        GOTO_HANDLER_IF (
+            !graphics_pipeline_write_to_descriptor_set (
+                &gctx->default_render_pass.pipelines.default_graphics.pipeline,
+                &gctx->ui_data
+            ),
+            GCTX_FAILED,
+            "Failed to write UBO info to descriptor set\n"
+        );
+    }
+
+    /* initially we consider the graphics context to be resized from 0 size. */
+    gctx->is_resized = True;
+
     return gctx;
 
 GCTX_FAILED:
@@ -82,6 +113,10 @@ GCTX_FAILED:
  * */
 void graphics_context_destroy (XuiGraphicsContext *gctx) {
     RETURN_IF (!gctx, ERR_INVALID_ARGUMENTS);
+
+    if (gctx->ui_data.buffer) {
+        device_buffer_deinit (&gctx->ui_data);
+    }
 
     if (gctx->default_render_pass.render_pass) {
         render_pass_deinit (&gctx->default_render_pass);
@@ -113,6 +148,8 @@ Bool graphics_context_resize (XuiGraphicsContext *gctx, XwWindow *xwin) {
         False,
         "Failed to resize graphics context.\n"
     );
+
+    gctx->is_resized = True;
 
     return True;
 }

@@ -47,6 +47,9 @@ typedef struct Vulkan {
     Uint32            gpu_count; /**< @b Total number of usable physical devices on host. */
     Device            device;    /**< @b Default device in use by the plugin. */
 
+    /**
+     * @b To store vertex buffer of different commonly used shapes.
+     * */
     struct {
         DeviceBuffer rect_2d;
     } shapes;

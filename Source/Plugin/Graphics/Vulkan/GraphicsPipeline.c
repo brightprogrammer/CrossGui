@@ -148,46 +148,6 @@ GraphicsPipeline *graphics_pipeline_init_default (
         );
     }
 
-    /* create uniform buffer to send GPU data */
-    // {
-    //     pipeline->uniform_buffer = device_buffer_create (
-    //         &vk.device,
-    //         VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-    //         sizeof (GpuUiData),
-    //         vk.device.graphics_queue.family_index
-    //     );
-    //
-    //     GOTO_HANDLER_IF (
-    //         !pipeline->uniform_buffer,
-    //         UNIFORM_FAILED,
-    //         "Failed to create a uniform buffer for passing UI data to GPU\n"
-    //     );
-    // }
-
-    /* update descriptor set by writing to one */
-    // {
-    //     VkDescriptorBufferInfo buffer_info = {
-    //         .buffer = pipeline->uniform_buffer->buffer,
-    //         .range  = pipeline->uniform_buffer->size,
-    //         .offset = 0
-    //     };
-    //
-    //     VkWriteDescriptorSet write_descriptor_set = {
-    //         .sType            = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-    //         .pNext            = Null,
-    //         .dstSet           = pipeline->descriptor_set,
-    //         .dstBinding       = 0,
-    //         .dstArrayElement  = 0,
-    //         .descriptorCount  = 1,
-    //         .descriptorType   = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-    //         .pImageInfo       = Null,
-    //         .pBufferInfo      = &buffer_info,
-    //         .pTexelBufferView = Null
-    //     };
-    //
-    //     vkUpdateDescriptorSets (device, 1, &write_descriptor_set, 0, Null);
-    // }
-
     /* create a pipeline layout including provided shader resource binding */
     {
         VkPipelineLayoutCreateInfo pipeline_layout_create_info = {
@@ -426,11 +386,6 @@ GraphicsPipeline *graphics_pipeline_deinit (GraphicsPipeline *pipeline) {
 
     vkDeviceWaitIdle (device);
 
-    // if (pipeline->uniform_buffer) {
-    //     device_buffer_destroy (pipeline->uniform_buffer, &vk.device);
-    //     pipeline->uniform_buffer = Null;
-    // }
-
     if (pipeline->pipeline) {
         vkDestroyPipeline (device, pipeline->pipeline, Null);
         pipeline->pipeline = VK_NULL_HANDLE;
@@ -450,6 +405,47 @@ GraphicsPipeline *graphics_pipeline_deinit (GraphicsPipeline *pipeline) {
     if (pipeline->descriptor_set_layout) {
         vkDestroyDescriptorSetLayout (device, pipeline->descriptor_set_layout, Null);
         pipeline->descriptor_set_layout = VK_NULL_HANDLE;
+    }
+
+    return pipeline;
+}
+
+/**
+ * @b Write given uniform buffer's information to default descriptor set.
+ *
+ * @param pipeline
+ * @param uniform_barrier
+ *
+ * @return @p pipeline on success.
+ * @return @c Null otherwise.
+ * */
+GraphicsPipeline *graphics_pipeline_write_to_descriptor_set (
+    GraphicsPipeline *pipeline,
+    DeviceBuffer     *uniform_buffer
+) {
+    RETURN_VALUE_IF (!pipeline || !uniform_buffer, Null, ERR_INVALID_ARGUMENTS);
+
+    VkDevice device = vk.device.logical;
+
+    /* write this buffer info to descriptor set */
+    {
+        VkDescriptorBufferInfo buffer_info =
+            {.buffer = uniform_buffer->buffer, .range = uniform_buffer->size, .offset = 0};
+
+        VkWriteDescriptorSet write_descriptor_set = {
+            .sType            = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .pNext            = Null,
+            .dstSet           = pipeline->descriptor_set,
+            .dstBinding       = 0,
+            .dstArrayElement  = 0,
+            .descriptorCount  = 1,
+            .descriptorType   = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            .pImageInfo       = Null,
+            .pBufferInfo      = &buffer_info,
+            .pTexelBufferView = Null
+        };
+
+        vkUpdateDescriptorSets (device, 1, &write_descriptor_set, 0, Null);
     }
 
     return pipeline;

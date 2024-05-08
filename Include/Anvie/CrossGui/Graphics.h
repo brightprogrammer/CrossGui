@@ -45,17 +45,19 @@ typedef struct Scale2D {
     Float32 h; /**< @b Scale height of shape by this factor. */
 } Scale2D;
 
-typedef struct Rect2D {
-    Position2D position; /**< @b Rectangle position. */
-    Scale2D    scale;    /**< @b Scale position. */
-    Float32    depth;    /**< @b Depth (z) at which this rect must be rendered. */
-} Rect2D;
-
 typedef struct Color {
     Float32 r;
     Float32 g;
     Float32 b;
     Float32 a;
 } Color;
+
+typedef struct Rect2D {
+    Position2D position; /**< @b Rectangle position. */
+    Scale2D    scale;    /**< @b Scale position. */
+    Color      color;
+    Float32    depth;    /**< @b Depth (z) at which this rect must be rendered. */
+} Rect2D;
+
 
 #endif // ANVIE_CROSSGUI_GRAPHICS_H

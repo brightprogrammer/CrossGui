@@ -78,11 +78,12 @@ DeviceBuffer *device_buffer_memcpy (DeviceBuffer *buffer, void *data, Size size)
  * @b Device image data.
  * */
 typedef struct DeviceImage {
-    VkImage        image;  /**< @b Image handle */
-    VkDeviceMemory memory; /**< @b Allocated device memory handle */
-    VkImageView    view;   /**< @b Image view. */
-    VkFormat       format; /**< @b Image format */
-    VkExtent3D     extent; /**< @b Image dimensions. */
+    VkImage           image;  /**< @b Image handle */
+    VkDeviceMemory    memory; /**< @b Allocated device memory handle */
+    VkImageView       view;   /**< @b Image view. */
+    VkFormat          format; /**< @b Image format */
+    VkExtent3D        extent; /**< @b Image dimensions. */
+    VkImageUsageFlags usage;  /**< @b Image usage flags */
 } DeviceImage;
 
 DeviceImage *device_image_init (
@@ -95,5 +96,12 @@ DeviceImage *device_image_init (
     Uint32                queue_family_inddex
 );
 DeviceImage *device_image_deinit (DeviceImage *image);
+DeviceImage *device_image_change_layout (
+    DeviceImage    *image,
+    VkCommandBuffer cmd,
+    VkImageLayout   initial_layout,
+    VkImageLayout   final_layout
+);
+DeviceImage *device_image_clear (DeviceImage *image, VkCommandBuffer cmd, VkClearValue clear_value);
 
 #endif // ANVIE_SOURCE_CROSSGUI_PLUGIN_GRAPHICS_VULKAN_H

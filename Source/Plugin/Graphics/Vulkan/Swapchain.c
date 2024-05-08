@@ -209,16 +209,18 @@ Swapchain *swapchain_init (Swapchain *swapchain, XwWindow *win) {
             const Uint32 queue_family_indices[] = {vk.device.graphics_queue.family_index};
 
             VkSwapchainCreateInfoKHR swapchain_create_info = {
-                .sType                 = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
-                .pNext                 = Null,
-                .flags                 = 0,
-                .surface               = swapchain->surface,
-                .minImageCount         = min_image_count,
-                .imageFormat           = surface_format.format,
-                .imageColorSpace       = surface_format.colorSpace,
-                .imageExtent           = image_extent,
-                .imageArrayLayers      = 1,
-                .imageUsage            = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+                .sType            = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+                .pNext            = Null,
+                .flags            = 0,
+                .surface          = swapchain->surface,
+                .minImageCount    = min_image_count,
+                .imageFormat      = surface_format.format,
+                .imageColorSpace  = surface_format.colorSpace,
+                .imageExtent      = image_extent,
+                .imageArrayLayers = 1,
+                /* image will be used for color attachment but also be used for clear image operations. 
+                 * Load/Store operations are transfer operations */
+                .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
                 .imageSharingMode      = VK_SHARING_MODE_EXCLUSIVE,
                 .queueFamilyIndexCount = ARRAY_SIZE (queue_family_indices),
                 .pQueueFamilyIndices   = queue_family_indices,
@@ -517,4 +519,153 @@ Bool swapchain_register_reinit_handler (
         (SwapchainReinitHandlerData) {.handler = handler, .render_pass = render_pass};
 
     return True;
+}
+
+/**
+ * @b Change layout of image in swapchain from @c initial_layout to @c final_layout.
+ *
+ * This will create an image memory barrier and perform the transition
+ * of image by recording the image transition command to provided command
+ * buffer. This can be dispatched separately in a separate command buffer,
+ * or can be incorporated into command buffers including other commands.
+ *
+ * @WARN : Don't pass @c final_layout same as @c initial_layout.
+ *         That's considered as invalid argument and function will
+ *         return @c Null.
+ *
+ * @NOTE: The transition happens only as soon as the given command buffer is 
+ *        submitted. The function only records commands to transition image,
+ *        and does, not actually perform the image transition in place.
+ *
+ * @param swapchain @c Swapchain which contains the image.
+ * @param img_idx Index of image in @c Swapchain to change layout.
+ * @param cmd @c VkCommandBuffer object with already @c vkBeginCommandBuffer
+ *        called upon it.
+ * @param initial_layout Initial layout of image. If not known, then just pass 
+ *        @c VK_IMAGE_LAYOUT_UNDEFINED.
+ * @param final_layout Final layout of image to be transitioned to.
+ *
+ * @return @c swapchain on success.
+ * @return @c Null otherwise. 
+ * */
+Swapchain *swapchain_change_image_layout (
+    Swapchain      *swapchain,
+    Uint32          img_idx,
+    VkCommandBuffer cmd,
+    VkImageLayout   initial_layout,
+    VkImageLayout   final_layout
+) {
+    RETURN_VALUE_IF (
+        !swapchain || !cmd || final_layout == initial_layout,
+        Null,
+        ERR_INVALID_ARGUMENTS
+    );
+    RETURN_VALUE_IF (
+        img_idx >= swapchain->image_count,
+        Null,
+        "Swapchain image index out of bounds\n"
+    );
+
+    /* this is used multiple times to just create and keep it constant */
+    VkImageSubresourceRange image_subrange = {
+        .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+        .baseMipLevel   = 0,
+        .levelCount     = 1,
+        .baseArrayLayer = 0,
+        .layerCount     = 1
+    };
+
+    VkImageMemoryBarrier barrier = {
+        .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+        .pNext               = Null,
+        .srcAccessMask       = 0,
+        .dstAccessMask       = 0,
+        .oldLayout           = initial_layout,
+        .newLayout           = final_layout,
+        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .image               = swapchain->images[img_idx].image,
+        .subresourceRange    = image_subrange,
+    };
+
+    vkCmdPipelineBarrier (
+        cmd,                               /* command buffer */
+        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, /* src stage mask */
+        VK_PIPELINE_STAGE_TRANSFER_BIT, /* dst stage mask, because image load/clear is a transfer operation */
+        0,                              /* dependency flags */
+        0,                              /* memory barrier count */
+        Null,                           /* memory barriers */
+        0,                              /* buffer memory barrier count */
+        Null,                           /* buffer barriers */
+        1,                              /* image memory barrier count */
+        &barrier                        /* image memory barriers */
+    );
+
+    return swapchain;
+}
+
+/**
+ * @b Clear image. 
+ *
+ * This only records commands to clear image. The image is cleared as soon
+ * as the command buffer in which the commands were recorded is submitted.
+ *
+ * @param image @c DeviceImage to be cleared.
+ * @param cmd @c VkCommandBuffer object with @c vkBeginCommandBuffer already
+ *        called upon it.
+ * @param clear_value @c VkClearValue to use to clear the images.
+ *
+ * @return @c image on success.
+ * @return @c Null otherwise.
+ * */
+Swapchain *swapchain_clear_image (
+    Swapchain        *swapchain,
+    Uint32            img_idx,
+    VkCommandBuffer   cmd,
+    VkClearColorValue clear_value
+) {
+    RETURN_VALUE_IF (!swapchain || !cmd, Null, ERR_INVALID_ARGUMENTS);
+
+    /* clearing image is a transfer operation
+     * layout of image during clear operation */
+    swapchain_change_image_layout (
+        swapchain,
+        img_idx,
+        cmd,
+        VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
+    );
+
+    VkImageSubresourceRange image_subrange = {
+        .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+        .baseMipLevel   = 0,
+        .levelCount     = 1,
+        .baseArrayLayer = 0,
+        .layerCount     = 1
+    };
+
+    /* get image handle */
+    VkImage image = swapchain->images[img_idx].image;
+
+    /* clear image */
+    vkCmdClearColorImage (
+        cmd,                                  /* command buffer */
+        image,                                /* handle of image to be cleared */
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, /* layout of image */
+        &clear_value,                         /* clear color */
+        1,                                    /* subresource count */
+        &image_subrange                       /* subresource ranges */
+    );
+
+    /* Add another barrier and put the image in VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+     * final layout is for presenting to screen */
+    swapchain_change_image_layout (
+        swapchain,
+        img_idx,
+        cmd,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+    );
+
+    return swapchain;
 }

@@ -13,7 +13,63 @@
 /* for plugin loading */
 #include <dlfcn.h>
 
-// TODO: Implement draw line and draw rectangle methods in plugin.
+void draw_ui (XuiGraphicsPlugin *gplug, XuiGraphicsContext *gctx, XwWindow *xwin) {
+    RETURN_IF (!gplug || !gctx || !xwin, ERR_INVALID_ARGUMENTS);
+
+    gplug->clear (gctx, xwin);
+
+    if (!gplug->draw_rect_2d (
+            gctx,
+            xwin,
+            (Rect2D) {
+                .position = {0, 0},
+                .scale    = {0.1, 0.05},
+                .color    = {1, 1, 1, 1},
+                .depth    = 0.f
+    }
+        )) {
+        return;
+    }
+
+    if (!gplug->draw_rect_2d (
+            gctx,
+            xwin,
+            (Rect2D) {
+                .position = {0, 0.1},
+                .scale    = {0.1, 0.05},
+                .color    = {1, 0, 0, 1},
+                .depth    = 0.f
+    }
+        )) {
+        return;
+    }
+
+    if (!gplug->draw_rect_2d (
+            gctx,
+            xwin,
+            (Rect2D) {
+                .position = {0, 0.2},
+                .scale    = {0.1, 0.05},
+                .color    = {0, 1, 0, 1},
+                .depth    = 0.f
+    }
+        )) {
+        return;
+    }
+
+    if (!gplug->draw_rect_2d (
+            gctx,
+            xwin,
+            (Rect2D) {
+                .position = {0, 0.3},
+                .scale    = {0.1, 0.05},
+                .color    = {0, 0, 1, 1},
+                .depth    = 0.f
+    }
+        )) {
+        return;
+    }
+}
 
 int main (Int32 argc, CString *argv) {
     RETURN_VALUE_IF (argc < 2, EXIT_FAILURE, "%s <plugin path>\n", argv[0]);
@@ -27,6 +83,8 @@ int main (Int32 argc, CString *argv) {
     XwWindow           *xwin = xw_window_create (Null, 540, 360, 0, 0);
     XuiGraphicsContext *gctx = gplug->context_create (xwin);
     RETURN_VALUE_IF (!gctx, EXIT_FAILURE, "Failed to create graphics context\n");
+
+    draw_ui (gplug, gctx, xwin);
 
     XwEvent e;
     Bool    is_running = True;
@@ -49,11 +107,10 @@ int main (Int32 argc, CString *argv) {
 
         if (resized) {
             gplug->context_resize (gctx, xwin);
+            draw_ui (gplug, gctx, xwin);
         }
-
-        if (!gplug->draw_rect_2d (gctx, xwin, (Rect2D) {0}, (Color) {1, 1, 0, 1})) {
-            break;
-        }
+        
+        draw_ui(gplug, gctx, xwin);
     }
 
     gplug->context_destroy (gctx);

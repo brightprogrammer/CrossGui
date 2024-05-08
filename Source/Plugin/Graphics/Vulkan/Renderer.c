@@ -35,6 +35,7 @@
 
 #include "Anvie/Common.h"
 #include "Anvie/CrossGui/Plugin/Graphics/API.h"
+#include "Device.h"
 #include "GraphicsContext.h"
 #include "RenderPass.h"
 #include "Swapchain.h"
@@ -69,14 +70,15 @@ static XuiRenderStatus end_frame (
 /*********************************** PUBLIC METHOD DEFINITIONS ************************************/
 /**************************************************************************************************/
 
-XuiRenderStatus draw_rect_2d (XuiGraphicsContext *gctx, XwWindow *win, Rect2D rect, Color color) {
-    UNUSED (rect);
-    RETURN_VALUE_IF (!gctx || !win, False, ERR_INVALID_ARGUMENTS);
+XuiRenderStatus gfx_draw_rect_2d (XuiGraphicsContext *gctx, XwWindow *win, Rect2D rect) {
+    RETURN_VALUE_IF (!gctx || !win, XUI_RENDER_STATUS_ERR, ERR_INVALID_ARGUMENTS);
 
-    RenderPass *render_pass = &gctx->default_render_pass;
-    Swapchain  *swapchain   = &gctx->swapchain;
+    RenderPass       *render_pass      = &gctx->default_render_pass;
+    Swapchain        *swapchain        = &gctx->swapchain;
+    GraphicsPipeline *default_pipeline = &render_pass->pipelines.default_graphics.pipeline;
 
     BeginEndInfo info = {0};
+
 
     /* begin frame rendering and command recording,
      * will get new frame data in info struct */
@@ -87,21 +89,40 @@ XuiRenderStatus draw_rect_2d (XuiGraphicsContext *gctx, XwWindow *win, Rect2D re
 
     VkCommandBuffer cmd = info.frame_data->command.buffer;
 
+    /* Since we're not clearing color images, the transition won't happen automatically.
+     * For this, we need to transition these images ourselves before we begin renderpass */
+    if (gctx->is_resized) {
+        swapchain_change_image_layout (
+            swapchain,
+            info.image_index,
+            cmd,
+            VK_IMAGE_LAYOUT_UNDEFINED,
+            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+        );
+    } else {
+        swapchain_change_image_layout (
+            swapchain,
+            info.image_index,
+            cmd,
+            VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+        );
+    }
+
     /* begin render pass */
     {
-        VkClearValue color_clear_value = {.color = {{color.r, color.g, color.b, color.a}}};
-        VkClearValue depth_clear_value = {
-            .depthStencil = {.depth = 0.f, .stencil = 0.f}
-        };
-
         VkRenderPassBeginInfo render_pass_begin_info = {
-            .sType           = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-            .pNext           = Null,
-            .renderPass      = render_pass->render_pass,
-            .renderArea      = {.offset = {.x = 0, .y = 0}, .extent = swapchain->image_extent},
-            .framebuffer     = info.framebuffer,
-            .clearValueCount = 2,
-            .pClearValues    = (VkClearValue[]) {         color_clear_value,                 depth_clear_value}
+            .sType       = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+            .pNext       = Null,
+            .renderPass  = render_pass->render_pass,
+            .renderArea  = {.offset = {.x = 0, .y = 0}, .extent = swapchain->image_extent},
+            .framebuffer = info.framebuffer,
+
+            /* we're able to pass depth-stencil clear value only and at first index because of
+             * how renderpass attachments and framebuffer attachments are described during renderpass
+             * creation */
+            .clearValueCount = 1,
+            .pClearValues    = (VkClearValue[]) {{.depthStencil = {.depth = 0.f, .stencil = 0.f}}}
         };
 
         vkCmdBeginRenderPass (cmd, &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
@@ -113,20 +134,83 @@ XuiRenderStatus draw_rect_2d (XuiGraphicsContext *gctx, XwWindow *win, Rect2D re
         render_pass->pipelines.default_graphics.pipeline.pipeline
     );
 
+    /* update uniform buffer with GUI data */
+    device_buffer_memcpy (&gctx->ui_data, &rect, sizeof (rect));
+
+    /* bind uniform buffers */
+    vkCmdBindDescriptorSets (
+        cmd,
+        VK_PIPELINE_BIND_POINT_GRAPHICS,                                  /* bind point */
+        render_pass->pipelines.default_graphics.pipeline.pipeline_layout, /* pipeline layout */
+        0,                                                                /* first set */
+        1,                                                                /* set count */
+        &default_pipeline->descriptor_set,                                /* sets */
+        0, /* dynamic offset counts */
+        0  /* dynamic offsets */
+    );
+
+    /* bind shape data */
     vkCmdBindVertexBuffers (
         cmd,
-        0,
-        1,
-        (VkBuffer[]) {vk.shapes.rect_2d.buffer},
-        (VkDeviceSize[]) {0}
+        0,                                       /* first binding */
+        1,                                       /* binding count */
+        (VkBuffer[]) {vk.shapes.rect_2d.buffer}, /* buffers */
+        (VkDeviceSize[]) {0}                     /* offsets */
     );
-    vkCmdDraw (cmd, 6, 1, 0, 0);
+
+    /* draw */
+    vkCmdDraw (
+        cmd,
+        6, /* vertex count */
+        1, /* instance count */
+        0, /* first vertex */
+        0  /* first instance */
+    );
 
     /* end render pass */
     vkCmdEndRenderPass (cmd);
 
     /* end command buffer */
     status = end_frame (render_pass, swapchain, win, &info);
+
+    return status;
+}
+
+/**
+ * @b Clear next frame instead of drawing something to it.
+ *
+ * @param gctx
+ * @param win
+ *
+ * @return @c XUI_RENDER_STATUS_OK on success.
+ * @return @c XUI_RENDER_STATUS_ERR otherwise.
+ * */
+XuiRenderStatus gfx_clear (XuiGraphicsContext *gctx, XwWindow *win) {
+    RETURN_VALUE_IF (!gctx || !win, XUI_RENDER_STATUS_ERR, ERR_INVALID_ARGUMENTS);
+
+    RenderPass *render_pass = &gctx->default_render_pass;
+    Swapchain  *swapchain   = &gctx->swapchain;
+
+    BeginEndInfo info = {0};
+
+    /* begin frame by beginning command buffer recording and getting next
+     * available image index.
+     * */
+    XuiRenderStatus status = begin_frame (render_pass, swapchain, win, &info);
+    if (status != XUI_RENDER_STATUS_OK) {
+        return status;
+    }
+
+    /* get command buffer handle */
+    VkCommandBuffer cmd = info.frame_data->command.buffer;
+
+    /* clear next available image */
+    swapchain_clear_image (swapchain, info.image_index, cmd, (VkClearColorValue) {0});
+
+    /* end command buffer */
+    status = end_frame (render_pass, swapchain, win, &info);
+
+    gctx->is_resized = True;
 
     return status;
 }

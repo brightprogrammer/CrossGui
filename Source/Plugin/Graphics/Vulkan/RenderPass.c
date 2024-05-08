@@ -42,6 +42,9 @@
 #include "Swapchain.h"
 #include "Vulkan.h"
 
+#define DEPTH_ATTACHMENT_IDX 0
+#define COLOR_ATTACHMENT_IDX 1
+
 /**************************************************************************************************/
 /********************************** PRIVATE METHODS DECLARATIONS **********************************/
 /**************************************************************************************************/
@@ -84,15 +87,15 @@ RenderPass *render_pass_init_default (RenderPass *render_pass, Swapchain *swapch
             .flags          = 0,
             .format         = swapchain->image_format,
             .samples        = VK_SAMPLE_COUNT_1_BIT,
-            .loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR,
+            .loadOp         = VK_ATTACHMENT_LOAD_OP_LOAD,
             .storeOp        = VK_ATTACHMENT_STORE_OP_STORE,
             .stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
             .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-            .initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED,
+            .initialLayout  = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
             .finalLayout    = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
         };
         VkAttachmentReference color_attachment_reference = {
-            .attachment = 0, /* index of color attachment in render pass */
+            .attachment = COLOR_ATTACHMENT_IDX, /* index of color attachment in render pass */
             .layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
         };
 
@@ -100,7 +103,7 @@ RenderPass *render_pass_init_default (RenderPass *render_pass, Swapchain *swapch
             .flags          = 0,
             .format         = swapchain->depth_image.format,
             .samples        = VK_SAMPLE_COUNT_1_BIT,
-            .loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR,
+            .loadOp         = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
             .storeOp        = VK_ATTACHMENT_STORE_OP_STORE,
             .stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
             .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
@@ -108,10 +111,19 @@ RenderPass *render_pass_init_default (RenderPass *render_pass, Swapchain *swapch
             .finalLayout    = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
         };
         VkAttachmentReference depth_attachment_reference = {
-            .attachment = 1, /* index of depth attachment in render pass */
+            .attachment = DEPTH_ATTACHMENT_IDX, /* index of depth attachment in render pass */
             .layout     = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
         };
 
+        VkSubpassDependency external_dep = {
+            .srcSubpass      = VK_SUBPASS_EXTERNAL,
+            .dstSubpass      = 0,
+            .srcStageMask    = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            .dstStageMask    = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            .srcAccessMask   = 0,
+            .dstAccessMask   = 0,
+            .dependencyFlags = 0
+        };
 
         VkSubpassDescription subpass = {
             .flags                   = 0,
@@ -126,8 +138,9 @@ RenderPass *render_pass_init_default (RenderPass *render_pass, Swapchain *swapch
             .pPreserveAttachments    = Null
         };
 
-        VkAttachmentDescription render_pass_attachments[] = {color_attachment, depth_attachment};
-        VkSubpassDescription    render_pass_subpasses[]   = {subpass};
+        VkAttachmentDescription render_pass_attachments[] =
+            {[DEPTH_ATTACHMENT_IDX] = depth_attachment, [COLOR_ATTACHMENT_IDX] = color_attachment};
+        VkSubpassDescription render_pass_subpasses[] = {subpass};
 
         VkRenderPassCreateInfo render_pass_create_info = {
             .sType           = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
@@ -137,8 +150,8 @@ RenderPass *render_pass_init_default (RenderPass *render_pass, Swapchain *swapch
             .pAttachments    = render_pass_attachments,
             .subpassCount    = ARRAY_SIZE (render_pass_subpasses),
             .pSubpasses      = render_pass_subpasses,
-            .dependencyCount = 0,
-            .pDependencies   = Null,
+            .dependencyCount = 1,
+            .pDependencies   = &external_dep,
         };
 
         VkResult res =
@@ -256,8 +269,8 @@ static inline RenderPass *
     for (Size s = 0; s < render_pass->framebuffer_count; s++) {
         /* create framebuffer for each render target */
         framebuffer_create_info.pAttachments = (VkImageView[]) {
-            swapchain->images[s].view,  /* color attachment */
-            swapchain->depth_image.view /* depth-stencil attachment */
+            [COLOR_ATTACHMENT_IDX] = swapchain->images[s].view,  /* color attachment */
+            [DEPTH_ATTACHMENT_IDX] = swapchain->depth_image.view /* depth-stencil attachment */
         };
 
         VkResult res = vkCreateFramebuffer (
@@ -500,3 +513,6 @@ static inline Bool default_render_pass_swapchain_reinit_event_handler (
 
     return True;
 }
+
+#undef COLOR_ATTACHMENT_IDX
+#undef DEPTH_ATTACHMENT_IDX

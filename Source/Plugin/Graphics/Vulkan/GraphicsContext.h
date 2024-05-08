@@ -41,6 +41,22 @@ typedef struct XuiGraphicsContext {
     VkSurfaceKHR surface;
     Swapchain    swapchain;
     RenderPass   default_render_pass;
+    
+    /**
+     * @b True if graphics context was resized in last render call.
+     * 
+     * This is used by the graphics functions to decide some operations to
+     * perform just after swapchain resize.
+     * */
+    Bool is_resized;
+
+    /**
+     * @b UI object placement and size data is passed through uniform buffers.
+     *
+     * This stores the uniform buffer passed to the shaders.
+     * Since ui_data is different for each window, this is the best place for it.
+     * */
+    DeviceBuffer ui_data;
 } XuiGraphicsContext;
 
 XuiGraphicsContext *graphics_context_create (XwWindow *xwin);

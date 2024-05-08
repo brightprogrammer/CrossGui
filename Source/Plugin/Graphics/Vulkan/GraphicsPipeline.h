@@ -39,8 +39,9 @@
 #include <vulkan/vulkan.h>
 
 /* fwd declarations */
-typedef struct Swapchain Swapchain;
-typedef struct RenderPass RenderPass;
+typedef struct Swapchain    Swapchain;
+typedef struct RenderPass   RenderPass;
+typedef struct DeviceBuffer DeviceBuffer;
 
 typedef struct GraphicsPipeline {
     VkDescriptorPool      descriptor_pool;
@@ -57,5 +58,9 @@ GraphicsPipeline *graphics_pipeline_init_default (
     Swapchain        *swapchain
 );
 GraphicsPipeline *graphics_pipeline_deinit (GraphicsPipeline *pipeline);
+GraphicsPipeline *graphics_pipeline_write_to_descriptor_set (
+    GraphicsPipeline *pipeline,
+    DeviceBuffer     *uniform_buffer
+);
 
 #endif // ANVIE_CROSSGUI_SOURCE_PLUGINS_GRAPHICS_VULKAN_GRAPHICS_PIPELINE_H

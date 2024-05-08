@@ -40,6 +40,7 @@
 typedef struct XuiGraphicsContext XuiGraphicsContext;
 typedef struct XwWindow           XwWindow;
 
-XuiRenderStatus draw_rect_2d (XuiGraphicsContext *gctx, XwWindow *win, Rect2D rect, Color color);
+XuiRenderStatus gfx_draw_rect_2d (XuiGraphicsContext *gctx, XwWindow *win, Rect2D rect);
+XuiRenderStatus gfx_clear (XuiGraphicsContext *gctx, XwWindow *win);
 
 #endif // ANVIE_CROSSGUI_SOURCE_PLUGIN_GRAPHICS_VULKAN_RENDERER_H

@@ -150,5 +150,18 @@ Bool       swapchain_register_reinit_handler (
           SwapchainReinitHandler handler,
           RenderPass            *render_pass
       );
+Swapchain *swapchain_change_image_layout (
+    Swapchain      *swapchain,
+    Uint32          img_idx,
+    VkCommandBuffer cmd,
+    VkImageLayout   initial_layout,
+    VkImageLayout   final_layout
+);
+Swapchain *swapchain_clear_image (
+    Swapchain        *swapchain,
+    Uint32            img_idx,
+    VkCommandBuffer   cmd,
+    VkClearColorValue clear_value
+);
 
 #endif // ANVIE_SOURCE_CROSSGUI_PLUGIN_GRAPHICS_VULKAN_SWAPCHAIN_H

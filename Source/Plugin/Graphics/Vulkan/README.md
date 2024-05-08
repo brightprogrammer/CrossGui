@@ -1,5 +1,11 @@
 # CrossGui Vulkan Graphics Plugin
 
+## [[**Wed, 8nd May 2024**]]
+
+Added `gfx_clear` in graphics api to allow clearing of swapchain images on demand.
+If GUI is drawn in retained mode, we'd prefer not clearing images ever loop.
+User-code can use `gfx_clear` op to clear the screen.
+
 ## [[**Thu, 2nd May 2024**]] - 2
 
 Added `XuiRenderStatus` enum to be returned by `draw_xyz` method to give more

@@ -46,6 +46,7 @@ typedef struct XuiGraphicsPlugin {
 
     /* drawing methods */
     XuiGraphicsDrawRect2D draw_rect_2d;
+    XuiGraphicsClear      clear;
 } XuiGraphicsPlugin;
 
 #endif // ANVIE_CROSSGUI_PLUGIN_GRAPHICS_GRAPHICS_H

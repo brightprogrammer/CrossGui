@@ -253,7 +253,8 @@ static XuiGraphicsPlugin vulkan_graphics_plugin_data = {
     .context_resize  = graphics_context_resize,
 
     /* drawing methods */
-    .draw_rect_2d = draw_rect_2d
+    .draw_rect_2d = gfx_draw_rect_2d,
+    .clear = gfx_clear
 };
 
 /**

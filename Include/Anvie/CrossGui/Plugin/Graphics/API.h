@@ -142,8 +142,18 @@ typedef Bool (*XuiGraphicsContextResize) (XuiGraphicsContext *graphics_context, 
 typedef XuiRenderStatus (*XuiGraphicsDrawRect2D) (
     XuiGraphicsContext *graphics_context,
     XwWindow           *xwin,
-    Rect2D              rect,
-    Color               color
+    Rect2D              rect
 );
+
+/**
+ * @b Clear images of swapchain in given @x XuiGraphicsContext object.
+ *
+ * @param graphics_context 
+ * @param xwin 
+ *
+ * @return @c XUI_RENDER_STATUS_OK on success.
+ * @return @c XUI_RENDER_STATUS_ERR otherwise.
+ * */
+typedef XuiRenderStatus (*XuiGraphicsClear) (XuiGraphicsContext *graphics_context, XwWindow *xwin);
 
 #endif // ANVIE_CROSSGUI_PLUGIN_GRAPHICS_API_H

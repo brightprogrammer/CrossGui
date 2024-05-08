@@ -259,6 +259,8 @@ DeviceBuffer *device_buffer_init (
     Size offset = 0;
     vkBindBufferMemory (device, buffer->buffer, buffer->memory, offset);
 
+    buffer->size = size;
+
     return buffer;
 
 INIT_FAILED:
@@ -317,6 +319,10 @@ DeviceBuffer *device_buffer_memcpy (DeviceBuffer *buffer, void *data, Size size)
 
     return buffer;
 }
+
+/**************************************************************************************************/
+/********************************** DEVICE IMAGE PUBLIC METHODS ***********************************/
+/**************************************************************************************************/
 
 /**
  * @b Initialize the given @c DeviceImage object.
@@ -450,6 +456,7 @@ DeviceImage *device_image_init (
 
     image->format = format;
     image->extent = extent;
+    image->usage  = usage;
 
     return image;
 
@@ -486,6 +493,145 @@ DeviceImage *device_image_deinit (DeviceImage *image) {
     }
 
     memset (image, 0, sizeof (DeviceImage));
+
+    return image;
+}
+
+/**
+ * @b Change image layout from @c initial_layout to @c final_layout.
+ *
+ * This will create an image memory barrier and perform the transition
+ * of image by recording the image transition command to provided command
+ * buffer. This can be dispatched separately in a separate command buffer,
+ * or can be incorporated into command buffers including other commands.
+ *
+ * @WARN : This only works for depth-stencil or color attachment images.
+ *         If an image does not have @c VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT set,
+ *         then it's treated as depth-stencil attachment.
+ *
+ * @WARN : Don't pass @c final_layout same as @c initial_layout.
+ *         That's considered as invalid argument and function will
+ *         return @c Null.
+ *
+ * @NOTE: The transition happens only as soon as the given command buffer is 
+ *        submitted. The function only records commands to transition image,
+ *        and does, not actually perform the image transition in place.
+ *
+ * @param image @c DeviceImage to change layout.
+ * @param cmd @c VkCommandBuffer object with already @c vkBeginCommandBuffer
+ *        called upon it.
+ * @param initial_layout Initial layout of image. If not known, then just pass 
+ *        @c VK_IMAGE_LAYOUT_UNDEFINED.
+ * @param final_layout Final layout of image to be transitioned to.
+ *
+ * @return @c image on success.
+ * @return @c Null otherwise. 
+ * */
+DeviceImage *device_image_change_layout (
+    DeviceImage    *image,
+    VkCommandBuffer cmd,
+    VkImageLayout   initial_layout,
+    VkImageLayout   final_layout
+) {
+    RETURN_VALUE_IF (!image || !cmd || final_layout == initial_layout, Null, ERR_INVALID_ARGUMENTS);
+
+    /* this is used multiple times to just create and keep it constant */
+    /* WARN : This is same for all images for now, later on we might require to change this */
+    VkImageSubresourceRange image_subrange = {
+        .aspectMask     = image->usage & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT ?
+                              VK_IMAGE_ASPECT_COLOR_BIT :
+                              VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+        .baseMipLevel   = 0,
+        .levelCount     = 1,
+        .baseArrayLayer = 0,
+        .layerCount     = 1
+    };
+
+    VkImageMemoryBarrier barrier = {
+        .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+        .pNext               = Null,
+        .srcAccessMask       = 0,
+        .dstAccessMask       = 0,
+        .oldLayout           = initial_layout,
+        .newLayout           = final_layout,
+        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .image               = image->image,
+        .subresourceRange    = image_subrange,
+    };
+
+    vkCmdPipelineBarrier (
+        cmd,                               /* command buffer */
+        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, /* src stage mask */
+        VK_PIPELINE_STAGE_TRANSFER_BIT, /* dst stage mask, because image load/clear is a transfer operation */
+        0,                              /* dependency flags */
+        0,                              /* memory barrier count */
+        Null,                           /* memory barriers */
+        0,                              /* buffer memory barrier count */
+        Null,                           /* buffer barriers */
+        1,                              /* image memory barrier count */
+        &barrier                        /* image memory barriers */
+    );
+
+    return image;
+}
+
+/**
+ * @b Clear image. 
+ *
+ * This only records commands to clear image. The image is cleared as soon
+ * as the command buffer in which the commands were recorded is submitted.
+ *
+ * @param image @c DeviceImage to be cleared.
+ * @param cmd @c VkCommandBuffer object with @c vkBeginCommandBuffer already
+ *        called upon it.
+ * @param clear_value @c VkClearValue to use to clear the images.
+ *
+ * @return @c image on success.
+ * @return @c Null otherwise.
+ * */
+DeviceImage *
+    device_image_clear (DeviceImage *image, VkCommandBuffer cmd, VkClearValue clear_value) {
+    RETURN_VALUE_IF (!image || !cmd, Null, ERR_INVALID_ARGUMENTS);
+
+    /* clearing image is a transfer operation
+     * layout of image during clear operation */
+    VkImageLayout clear_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    device_image_change_layout (image, cmd, VK_IMAGE_LAYOUT_UNDEFINED, clear_layout);
+
+    VkImageSubresourceRange image_subrange = {
+        .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+        .baseMipLevel   = 0,
+        .levelCount     = 1,
+        .baseArrayLayer = 0,
+        .layerCount     = 1
+    };
+
+    /* clear image based on usage flags */
+    if (image->usage & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT) {
+        vkCmdClearColorImage (
+            cmd,                // command buffer
+            image->image,       // handle of image to be cleared
+            clear_layout,       // layout of image
+            &clear_value.color, // clear color
+            1,
+            &image_subrange     // subresource ranges count and array
+        );
+    } else if (image->usage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT) {
+        vkCmdClearDepthStencilImage (
+            cmd,                       /* command buffer */
+            image->image,              /* handle of image to be cleared */
+            clear_layout,              /* layout of image */
+            &clear_value.depthStencil, /* clear color */
+            1,                         /* image subresource range count */
+            &image_subrange            /* subresource ranges */
+        );
+    }
+
+    /* Add another barrier and put the image in VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+     * final layout is for presenting to screen */
+    const VkImageLayout final_layout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    device_image_change_layout (image, cmd, clear_layout, final_layout);
 
     return image;
 }
