@@ -1,5 +1,18 @@
 # CrossGui Vulkan Graphics Plugin
 
+## [[**Thu, 9th May 2024**]]
+
+- Added helper method for naming of vulkan handles. This helps the validation layer
+  provide some extra passed information in validation messages.
+- Drawing command works
+
+I now have to figure out how to draw the whole UI in a single frame. If not then
+the `draw_ui` command needs to be issued as many times as there are swapchain images,
+after `XuiGraphicsPlugin::clear` command. This is to make sure all framebuffers have
+same content. This idea is not very efficient.
+
+TODO: draw the whole UI using a single draw call. Prolly I can use instanced rendering.
+
 ## [[**Wed, 8nd May 2024**]]
 
 Added `gfx_clear` in graphics api to allow clearing of swapchain images on demand.

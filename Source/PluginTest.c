@@ -71,6 +71,10 @@ int main (Int32 argc, CString *argv) {
 
     gplug->clear (gctx, xwin);
     draw_ui (gplug, gctx, xwin);
+    draw_ui (gplug, gctx, xwin);
+    draw_ui (gplug, gctx, xwin);
+    draw_ui (gplug, gctx, xwin);
+    draw_ui (gplug, gctx, xwin);
 
     XwEvent e;
     Bool    is_running = True;
