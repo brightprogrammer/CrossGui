@@ -88,7 +88,7 @@ XuiGraphicsContext *graphics_context_create (XwWindow *xwin) {
 
         GOTO_HANDLER_IF (
             !graphics_pipeline_write_to_descriptor_set (
-                &gctx->default_render_pass.pipelines.default_graphics.pipeline,
+                &gctx->default_render_pass.pipelines.default_graphics,
                 &gctx->ui_data
             ),
             GCTX_FAILED,

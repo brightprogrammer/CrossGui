@@ -47,6 +47,7 @@
 
 /* local includes */
 #include "Anvie/Common.h"
+#include "Device.h"
 #include "Swapchain.h"
 #include "Vulkan.h"
 
@@ -330,6 +331,7 @@ Swapchain *swapchain_init (Swapchain *swapchain, XwWindow *win) {
         }
     }
 
+    /* create depth image, and set debug names */
     /* create depth image for this swapchain */
     GOTO_HANDLER_IF (
         !device_image_init (
@@ -360,6 +362,64 @@ Swapchain *swapchain_init (Swapchain *swapchain, XwWindow *win) {
     }
 
     swapchain->is_reinited = True;
+
+    /* name objects in swapchain */
+    {
+        /* set debug name for swapchain */
+        GOTO_HANDLER_IF (
+            !device_set_object_debug_name (
+                VK_OBJECT_TYPE_SWAPCHAIN_KHR,
+                (Uint64)swapchain->swapchain,
+                "Swapchain"
+            ),
+            INIT_FAILED,
+            "Failed to set swapchain debug object name.\n"
+        );
+
+        /* set debug names for swapchain color images and image views */
+        for (Size s = 0; s < swapchain->image_count; s++) {
+            GOTO_HANDLER_IF (
+                !device_set_object_debug_name (
+                    VK_OBJECT_TYPE_IMAGE,
+                    (Uint64)swapchain->images[s].image,
+                    "Swapchain Color Image"
+                ),
+                INIT_FAILED,
+                "Failed to set swapchain color image debug object name.\n"
+            );
+            GOTO_HANDLER_IF (
+                !device_set_object_debug_name (
+                    VK_OBJECT_TYPE_IMAGE_VIEW,
+                    (Uint64)swapchain->images[s].view,
+                    "Swapchain Color Image View"
+                ),
+                INIT_FAILED,
+                "Failed to set swapchain color image view debug object name.\n"
+            );
+        }
+
+        /* set debug object name for depth image */
+        GOTO_HANDLER_IF (
+            !device_set_object_debug_name (
+                VK_OBJECT_TYPE_IMAGE,
+                (Uint64)swapchain->depth_image.image,
+                "Swapchain Depth Image"
+            ),
+            INIT_FAILED,
+            "Failed to set swapchain depth image debug object name.\n"
+        );
+
+        /* set debug object name for depth image view */
+        GOTO_HANDLER_IF (
+            !device_set_object_debug_name (
+                VK_OBJECT_TYPE_IMAGE_VIEW,
+                (Uint64)swapchain->depth_image.view,
+                "Swapchain Depth Image View"
+            ),
+            INIT_FAILED,
+            "Failed to set swapchain depth image view debug object name.\n"
+        );
+    }
 
     return swapchain;
 

@@ -37,6 +37,7 @@
 #include <memory.h>
 
 /* local includes */
+#include "Device.h"
 #include "GraphicsPipeline.h"
 #include "RenderPass.h"
 #include "Swapchain.h"
@@ -128,6 +129,18 @@ RenderPass *render_pass_init_default (RenderPass *render_pass, Swapchain *swapch
             .pPreserveAttachments    = Null
         };
 
+        /* copy pasted from : https://github.com/travisvroman/kohi/blob/e529fd20a81d8b55c24a77635b815b0875eb810f/vulkan_renderer/src/renderer/vulkan/vulkan_backend.c#L3253-L3259 */
+        // VkSubpassDependency external_dependency = {
+        //     .srcSubpass    = VK_SUBPASS_EXTERNAL,
+        //     .dstSubpass    = 0,
+        //     .srcStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        //     .srcAccessMask = 0,
+        //     .dstStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        //     .dstAccessMask =
+        //         VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+        //     .dependencyFlags = 0
+        // };
+
         VkAttachmentDescription render_pass_attachments[] =
             {[DEPTH_ATTACHMENT_IDX] = depth_attachment, [COLOR_ATTACHMENT_IDX] = color_attachment};
         VkSubpassDescription render_pass_subpasses[] = {subpass};
@@ -165,7 +178,7 @@ RenderPass *render_pass_init_default (RenderPass *render_pass, Swapchain *swapch
     /* create graphics pipeline for subpass 0 */
     GOTO_HANDLER_IF (
         !graphics_pipeline_init_default (
-            &render_pass->pipelines.default_graphics.pipeline,
+            &render_pass->pipelines.default_graphics,
             render_pass,
             swapchain
         ),
@@ -183,6 +196,97 @@ RenderPass *render_pass_init_default (RenderPass *render_pass, Swapchain *swapch
         INIT_FAILED,
         "Failed to register render pass to swapchain for reinit event handling\n"
     );
+
+    /* set debug object names for object handles owned by default renderpass */
+    {
+        /* set renderpass name */
+        GOTO_HANDLER_IF (
+            !device_set_object_debug_name (
+                VK_OBJECT_TYPE_RENDER_PASS,
+                (Uint64)render_pass->render_pass,
+                "Default Render Pass"
+            ),
+            INIT_FAILED,
+            "Failed to set debug object name for default renderpass\n"
+        );
+
+        /* set framebuffer names */
+        for (Size s = 0; s < render_pass->framebuffer_count; s++) {
+            GOTO_HANDLER_IF (
+                !device_set_object_debug_name (
+                    VK_OBJECT_TYPE_FRAMEBUFFER,
+                    (Uint64)render_pass->framebuffers[s],
+                    "Framebuffer in Default Render Pass"
+                ),
+                INIT_FAILED,
+                "Failed to set debug object name for framebuffer default renderpass\n"
+            );
+        }
+
+        /* set object names for object handles in framedata */
+        for (Size s = 0; s < FRAME_LIMIT; s++) {
+            GOTO_HANDLER_IF (
+                !device_set_object_debug_name (
+                    VK_OBJECT_TYPE_COMMAND_POOL,
+                    (Uint64)render_pass->frame_data[s].command.pool,
+                    "Command Pool in Default Render Pass"
+                ),
+                INIT_FAILED,
+                "Failed to set debug object name for command pool in default renderpass\n"
+            );
+
+            GOTO_HANDLER_IF (
+                !device_set_object_debug_name (
+                    VK_OBJECT_TYPE_COMMAND_BUFFER,
+                    (Uint64)render_pass->frame_data[s].command.buffer,
+                    "Command Buffer in Default Render Pass"
+                ),
+                INIT_FAILED,
+                "Failed to set debug object name for command buffer in default renderpass\n"
+            );
+
+            GOTO_HANDLER_IF (
+                !device_set_object_debug_name (
+                    VK_OBJECT_TYPE_FENCE,
+                    (Uint64)render_pass->frame_data[s].sync.render_fence,
+                    "Render Fence in Default Render Pass"
+                ),
+                INIT_FAILED,
+                "Failed to set debug object name for fence in default renderpass\n"
+            );
+
+            GOTO_HANDLER_IF (
+                !device_set_object_debug_name (
+                    VK_OBJECT_TYPE_SEMAPHORE,
+                    (Uint64)render_pass->frame_data[s].sync.render_semaphore,
+                    "Render Semaphore in Default Render Pass"
+                ),
+                INIT_FAILED,
+                "Failed to set debug object name for semaphore in default renderpass\n"
+            );
+
+            GOTO_HANDLER_IF (
+                !device_set_object_debug_name (
+                    VK_OBJECT_TYPE_SEMAPHORE,
+                    (Uint64)render_pass->frame_data[s].sync.present_semaphore,
+                    "Present Semaphore in Default Render Pass"
+                ),
+                INIT_FAILED,
+                "Failed to set debug object name for semaphore in default renderpass\n"
+            );
+        }
+
+        /* set graphics pipeline name */
+        GOTO_HANDLER_IF (
+            !device_set_object_debug_name (
+                VK_OBJECT_TYPE_PIPELINE,
+                (Uint64)render_pass->pipelines.default_graphics.pipeline,
+                "Default Graphics Pipeline in Default Render Pass"
+            ),
+            INIT_FAILED,
+            "Failed to set debug object name for graphics pipeline in default renderpass\n"
+        );
+    }
 
     return render_pass;
 
@@ -204,7 +308,7 @@ RenderPass *render_pass_deinit (RenderPass *render_pass) {
     RETURN_VALUE_IF (!render_pass, Null, ERR_INVALID_ARGUMENTS);
 
     if (render_pass->type == RENDER_PASS_TYPE_DEFAULT) {
-        graphics_pipeline_deinit (&render_pass->pipelines.default_graphics.pipeline);
+        graphics_pipeline_deinit (&render_pass->pipelines.default_graphics);
     }
 
     VkDevice device = vk.device.logical;

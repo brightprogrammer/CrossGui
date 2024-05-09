@@ -141,6 +141,11 @@ typedef struct Swapchain {
     Size                        reinit_handler_count;    /**< @b How many have we stored? */
     Size                        reinit_handler_capacity; /**< @b How many can we store? */
 
+    /**
+     * @b @c True if swapchain was reinited recently, @c False otherwise.
+     *
+     * Set to @c True in @c swapchain_reinit method.
+     * */
     Bool is_reinited;
 } Swapchain;
 

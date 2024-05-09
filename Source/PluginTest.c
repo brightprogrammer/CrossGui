@@ -16,8 +16,6 @@
 void draw_ui (XuiGraphicsPlugin *gplug, XuiGraphicsContext *gctx, XwWindow *xwin) {
     RETURN_IF (!gplug || !gctx || !xwin, ERR_INVALID_ARGUMENTS);
 
-    gplug->clear (gctx, xwin);
-
     if (!gplug->draw_rect_2d (
             gctx,
             xwin,
@@ -43,6 +41,19 @@ void draw_ui (XuiGraphicsPlugin *gplug, XuiGraphicsContext *gctx, XwWindow *xwin
         )) {
         return;
     }
+
+    if (!gplug->draw_rect_2d (
+            gctx,
+            xwin,
+            (Rect2D) {
+                .position = {0, 0.2},
+                .scale    = {0.1, 0.05},
+                .color    = {0, 1, 0, 1},
+                .depth    = 0.f
+    }
+        )) {
+        return;
+    }
 }
 
 int main (Int32 argc, CString *argv) {
@@ -58,6 +69,7 @@ int main (Int32 argc, CString *argv) {
     XuiGraphicsContext *gctx = gplug->context_create (xwin);
     RETURN_VALUE_IF (!gctx, EXIT_FAILURE, "Failed to create graphics context\n");
 
+    gplug->clear (gctx, xwin);
     draw_ui (gplug, gctx, xwin);
 
     XwEvent e;
@@ -81,6 +93,7 @@ int main (Int32 argc, CString *argv) {
 
         if (resized) {
             gplug->context_resize (gctx, xwin);
+            gplug->clear (gctx, xwin);
             draw_ui (gplug, gctx, xwin);
         }
     }

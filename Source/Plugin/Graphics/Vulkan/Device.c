@@ -40,6 +40,8 @@
 #include <memory.h>
 #include <vulkan/vulkan_core.h>
 
+static PFN_vkSetDebugUtilsObjectNameEXT setDebugUtilsObjectNameEXT = Null;
+
 /**************************************************************************************************/
 /******************************** DEVICE PUBLIC METHOD DEFINITIONS ********************************/
 /**************************************************************************************************/
@@ -150,6 +152,19 @@ Bool device_init() {
         &vk.device.graphics_queue.handle
     );
 
+/* get debug utils object naming method */
+#ifndef NDEBUG
+    {
+        setDebugUtilsObjectNameEXT = (PFN_vkSetDebugUtilsObjectNameEXT
+        )vkGetInstanceProcAddr (vk.instance, "vkSetDebugUtilsObjectNameEXT");
+        if (!setDebugUtilsObjectNameEXT) {
+            PRINT_ERR ("Failed to find \"vkSetDebugUtilsObjectNameEXT\" method\n");
+            device_deinit();
+            return False;
+        }
+    }
+#endif
+
     return True;
 }
 
@@ -168,6 +183,51 @@ Bool device_deinit() {
         vkDeviceWaitIdle (device);
         vkDestroyDevice (device, Null);
     }
+
+    return True;
+}
+
+/**
+ * @b Set a debug name for given object to help pretty print.
+ *
+ * This helps in debugging only! If NDEBUG is defined, then
+ * this won't do anything and just return true. If NDEBUG is
+ * defined, it'll be optimized out by the compiler hopefully,
+ * so all the calls to this method would be redundant automatically.
+ *
+ * @param object_type
+ * @param handle
+ * @param name
+ *
+ * @return @c True on success.
+ * @return @c False otherwise.
+ * */
+Bool device_set_object_debug_name (VkObjectType object_type, Uint64 handle, CString name) {
+#ifndef NDEBUG
+    RETURN_VALUE_IF (!handle || !name, False, ERR_INVALID_ARGUMENTS);
+    RETURN_VALUE_IF (
+        !setDebugUtilsObjectNameEXT,
+        False,
+        "vkSetDebugUtilsObjectNameEXT method was not loaded.\n"
+    );
+
+    VkDebugUtilsObjectNameInfoEXT name_info = {
+        .sType        = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+        .objectType   = object_type,
+        .objectHandle = handle,
+        .pObjectName  = name
+    };
+
+    RETURN_VALUE_IF (
+        setDebugUtilsObjectNameEXT (vk.device.logical, &name_info) != VK_SUCCESS,
+        False,
+        "Failed to set debug name \"%s\" for given object\n",
+        name
+    );
+#else
+    UNUSED (object_type && handle && name);
+    UNUSED (setDebugUtilsObjectNameEXT);
+#endif
 
     return True;
 }

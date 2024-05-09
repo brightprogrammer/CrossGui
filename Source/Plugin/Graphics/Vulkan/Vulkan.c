@@ -93,7 +93,8 @@ static Bool init() {
 
             /* Extensions required by this application on it's own 
              * Any new required extensions must be added to this array */
-            static const CString my_exts[]    = {};
+            static const CString my_exts[]    = {
+            VK_EXT_DEBUG_UTILS_EXTENSION_NAME};
             Size                 my_ext_count = ARRAY_SIZE (my_exts);
 
             /* total number of extensions */

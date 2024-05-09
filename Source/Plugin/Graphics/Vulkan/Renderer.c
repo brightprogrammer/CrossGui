@@ -75,10 +75,9 @@ XuiRenderStatus gfx_draw_rect_2d (XuiGraphicsContext *gctx, XwWindow *win, Rect2
 
     RenderPass       *render_pass      = &gctx->default_render_pass;
     Swapchain        *swapchain        = &gctx->swapchain;
-    GraphicsPipeline *default_pipeline = &render_pass->pipelines.default_graphics.pipeline;
+    GraphicsPipeline *default_pipeline = &render_pass->pipelines.default_graphics;
 
     BeginEndInfo info = {0};
-
 
     /* begin frame rendering and command recording,
      * will get new frame data in info struct */
@@ -92,6 +91,7 @@ XuiRenderStatus gfx_draw_rect_2d (XuiGraphicsContext *gctx, XwWindow *win, Rect2
     /* Since we're not clearing color images, the transition won't happen automatically.
      * For this, we need to transition these images ourselves before we begin renderpass */
     if (swapchain->is_reinited) {
+        PRINT_ERR ("Changed image layout on renit\n");
         swapchain_change_image_layout (
             swapchain,
             info.image_index,
@@ -106,9 +106,12 @@ XuiRenderStatus gfx_draw_rect_2d (XuiGraphicsContext *gctx, XwWindow *win, Rect2
             VK_IMAGE_LAYOUT_UNDEFINED,
             VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
         );
+
+        swapchain->is_reinited = False;
     } else {
-        device_image_change_layout (
-            &swapchain->depth_image,
+        swapchain_change_image_layout (
+            swapchain,
+            info.image_index,
             cmd,
             VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
             VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
@@ -134,11 +137,7 @@ XuiRenderStatus gfx_draw_rect_2d (XuiGraphicsContext *gctx, XwWindow *win, Rect2
         vkCmdBeginRenderPass (cmd, &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
     }
 
-    vkCmdBindPipeline (
-        cmd,
-        VK_PIPELINE_BIND_POINT_GRAPHICS,
-        render_pass->pipelines.default_graphics.pipeline.pipeline
-    );
+    vkCmdBindPipeline (cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, default_pipeline->pipeline);
 
     /* update uniform buffer with GUI data */
     device_buffer_memcpy (&gctx->ui_data, &rect, sizeof (rect));
@@ -146,13 +145,13 @@ XuiRenderStatus gfx_draw_rect_2d (XuiGraphicsContext *gctx, XwWindow *win, Rect2
     /* bind uniform buffers */
     vkCmdBindDescriptorSets (
         cmd,
-        VK_PIPELINE_BIND_POINT_GRAPHICS,                                  /* bind point */
-        render_pass->pipelines.default_graphics.pipeline.pipeline_layout, /* pipeline layout */
-        0,                                                                /* first set */
-        1,                                                                /* set count */
-        &default_pipeline->descriptor_set,                                /* sets */
-        0, /* dynamic offset counts */
-        0  /* dynamic offsets */
+        VK_PIPELINE_BIND_POINT_GRAPHICS,   /* bind point */
+        default_pipeline->pipeline_layout, /* pipeline layout */
+        0,                                 /* first set */
+        1,                                 /* set count */
+        &default_pipeline->descriptor_set, /* sets */
+        0,                                 /* dynamic offset counts */
+        0                                  /* dynamic offsets */
     );
 
     /* bind shape data */
@@ -176,10 +175,8 @@ XuiRenderStatus gfx_draw_rect_2d (XuiGraphicsContext *gctx, XwWindow *win, Rect2
     /* end render pass */
     vkCmdEndRenderPass (cmd);
 
-    /* end command buffer */
-    status = end_frame (render_pass, swapchain, win, &info);
-
-    return status;
+    /* end command recording, submit for rendering and present to screen */
+    return end_frame (render_pass, swapchain, win, &info);
 }
 
 /**
@@ -196,33 +193,122 @@ XuiRenderStatus gfx_clear (XuiGraphicsContext *gctx, XwWindow *win) {
 
     RenderPass *render_pass = &gctx->default_render_pass;
     Swapchain  *swapchain   = &gctx->swapchain;
+    FrameData  *frame_data  = render_pass->frame_data + (render_pass->frame_index % FRAME_LIMIT);
 
-    BeginEndInfo info = {0};
+    /* wait for prending operations */
+    {
+        /* wait for rendering operations to complete for selected fence */
+        VkResult res =
+            vkWaitForFences (vk.device.logical, 1, &frame_data->sync.render_fence, True, 1e9);
+        RETURN_VALUE_IF (
+            res != VK_SUCCESS,
+            XUI_RENDER_STATUS_ERR,
+            "Timeout (1s) while waiting for fences. RET = %d\n",
+            res
+        );
 
-    /* begin frame by beginning command buffer recording and getting next
-     * available image index.
-     * */
-    XuiRenderStatus status = begin_frame (render_pass, swapchain, win, &info);
-    if (status != XUI_RENDER_STATUS_OK) {
-        return status;
+        /* need to reset fence before we use it again */
+        res = vkResetFences (vk.device.logical, 1, &frame_data->sync.render_fence);
+        RETURN_VALUE_IF (
+            res != VK_SUCCESS,
+            XUI_RENDER_STATUS_ERR,
+            "Failed to reset fences. RET = %d\n",
+            res
+        );
     }
 
     /* get command buffer handle */
-    VkCommandBuffer cmd = info.frame_data->command.buffer;
+    VkCommandBuffer cmd = frame_data->command.buffer;
 
-    /* clear next available image */
-    swapchain_clear_image (swapchain, info.image_index, cmd, (VkClearColorValue) {0});
+    /* reset command pool and begin command recording */
+    {
+        /* reset command buffer and record draw commands again */
+        {
+            VkResult res = vkResetCommandPool (vk.device.logical, frame_data->command.pool, 0);
+            RETURN_VALUE_IF (
+                res != VK_SUCCESS,
+                XUI_RENDER_STATUS_ERR,
+                "Failed to reset command buffer for recording new commands. RET = %d\n",
+                res
+            );
+        }
+
+        {
+            VkCommandBufferBeginInfo cmd_begin_info = {
+                .sType            = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+                .pNext            = Null,
+                .flags            = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+                .pInheritanceInfo = Null
+            };
+
+            VkResult res = vkBeginCommandBuffer (cmd, &cmd_begin_info);
+            RETURN_VALUE_IF (
+                res != VK_SUCCESS,
+                XUI_RENDER_STATUS_ERR,
+                "Failed to begin command buffer recording. RET = %d\n",
+                res
+            );
+        }
+    }
+
+    /* clear all images in swapchain */
+    for (Size s = 0; s < swapchain->image_count; s++) {
+        swapchain_clear_image (swapchain, s, cmd, (VkClearColorValue) {0});
+    }
+
     device_image_clear (
         &swapchain->depth_image,
         cmd,
-        (VkClearValue) {.depthStencil = {.depth = 1.f, .stencil = 0.f}}
+        (VkClearValue) {
+            .depthStencil = {.depth = 1.f, .stencil = 0.f}
+    }
     );
+    /* end command recording and submit */
+    {
+        /* end recording */
+        {
+            VkResult res = vkEndCommandBuffer (cmd);
+            RETURN_VALUE_IF (
+                res != VK_SUCCESS,
+                XUI_RENDER_STATUS_ERR,
+                "Failed to end command buffer recording. RET = %d\n",
+                res
+            );
+        }
 
-    /* end command buffer */
-    status = end_frame (render_pass, swapchain, win, &info);
+        /* submit for rendering */
+        {
+            /* wait when rendered image is being presented */
+            VkSubmitInfo submit_info = {
+                .sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+                .pNext                = Null,
+                .waitSemaphoreCount   = 0,
+                .pWaitSemaphores      = Null,
+                .pWaitDstStageMask    = Null,
+                .signalSemaphoreCount = 0,
+                .pSignalSemaphores    = Null,
+                .commandBufferCount   = 1,
+                .pCommandBuffers      = &cmd
+            };
 
-    return status;
+            VkResult res = vkQueueSubmit (
+                vk.device.graphics_queue.handle,
+                1,
+                &submit_info,
+                frame_data->sync.render_fence
+            );
+
+            RETURN_VALUE_IF (
+                res != VK_SUCCESS,
+                XUI_RENDER_STATUS_ERR,
+                "Failed to submit command buffers for execution. RET = %d\n",
+                res
+            );
+        }
+    }
+    return XUI_RENDER_STATUS_OK;
 }
+
 
 /**************************************************************************************************/
 /*********************************** PRIVATE METHOD DEFINITIONS ***********************************/
@@ -314,44 +400,40 @@ static XuiRenderStatus begin_frame (
         );
     }
     begin_info->image_index = image_index;
+    begin_info->framebuffer = render_pass->framebuffers[image_index];
 
-    /* get framebuffer corresponding to retrieved image index */
-    VkFramebuffer framebuffer = render_pass->framebuffers[image_index];
-    begin_info->framebuffer   = framebuffer;
-
-    /* reset command buffer and record draw commands again */
-    VkResult res = vkResetCommandPool (device, frame_data->command.pool, 0);
-    RETURN_VALUE_IF (
-        res != VK_SUCCESS,
-        XUI_RENDER_STATUS_ERR,
-        "Failed to reset command buffer for recording new commands. RET = %d\n",
-        res
-    );
-
-    /* begin command buffer recording */
     VkCommandBuffer cmd = frame_data->command.buffer;
+
+    /* reset command pool and begin command recording */
     {
-        VkCommandBufferBeginInfo cmd_begin_info = {
-            .sType            = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-            .pNext            = Null,
-            .flags            = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-            .pInheritanceInfo = Null
-        };
+        /* reset command buffer and record draw commands again */
+        {
+            VkResult res = vkResetCommandPool (vk.device.logical, frame_data->command.pool, 0);
+            RETURN_VALUE_IF (
+                res != VK_SUCCESS,
+                XUI_RENDER_STATUS_ERR,
+                "Failed to reset command buffer for recording new commands. RET = %d\n",
+                res
+            );
+        }
 
-        res = vkBeginCommandBuffer (cmd, &cmd_begin_info);
-        RETURN_VALUE_IF (
-            res != VK_SUCCESS,
-            XUI_RENDER_STATUS_ERR,
-            "Failed to begin command buffer recording. RET = %d\n",
-            res
-        );
+        {
+            VkCommandBufferBeginInfo cmd_begin_info = {
+                .sType            = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+                .pNext            = Null,
+                .flags            = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+                .pInheritanceInfo = Null
+            };
+
+            VkResult res = vkBeginCommandBuffer (cmd, &cmd_begin_info);
+            RETURN_VALUE_IF (
+                res != VK_SUCCESS,
+                XUI_RENDER_STATUS_ERR,
+                "Failed to begin command buffer recording. RET = %d\n",
+                res
+            );
+        }
     }
-
-    RETURN_VALUE_IF (
-        begin_info->framebuffer == VK_NULL_HANDLE,
-        XUI_RENDER_STATUS_ERR,
-        "Framebuffer is NULL????\n"
-    );
 
     return XUI_RENDER_STATUS_OK;
 }
@@ -367,8 +449,7 @@ static XuiRenderStatus begin_frame (
  * @param win
  * @param end_info @c BeginEndInfo returned by @c begin_frame method 
  *
- * @return @c XUI_RENDER_STATUS_OK on success.
- * @return @c XUI_RENDER_STATUS_CONTINUE if a recoverable error occured.
+ * @return @c XUI_RENDER_STATUS_OK, XUI_RENDER_STATUS_CONTINUE on success.
  * @return @c XUI_RENDER_STATUS_ERR otherwise.
  * */
 static XuiRenderStatus end_frame (
@@ -383,9 +464,8 @@ static XuiRenderStatus end_frame (
         ERR_INVALID_ARGUMENTS
     );
 
-    FrameData      *frame_data  = end_info->frame_data;
-    Uint32          image_index = end_info->image_index;
-    VkCommandBuffer cmd         = frame_data->command.buffer;
+    FrameData      *frame_data = end_info->frame_data;
+    VkCommandBuffer cmd        = frame_data->command.buffer;
 
     VkResult res = vkEndCommandBuffer (cmd);
     RETURN_VALUE_IF (
@@ -436,7 +516,7 @@ static XuiRenderStatus end_frame (
             .pSwapchains        = &swapchain->swapchain,
             .waitSemaphoreCount = 1,
             .pWaitSemaphores    = &frame_data->sync.render_semaphore,
-            .pImageIndices      = &image_index
+            .pImageIndices      = &end_info->image_index
         };
 
         VkResult res = vkQueuePresentKHR (vk.device.graphics_queue.handle, &present_info);

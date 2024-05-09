@@ -38,6 +38,7 @@
 
 /* vulkan includes */
 #include <vulkan/vulkan.h>
+#include <vulkan/vulkan_core.h>
 
 typedef struct DeviceQueue {
     Int32   family_index; /**< @b Non-negative value if holds a correct queue family index */
@@ -54,6 +55,7 @@ typedef struct Device {
 
 Bool device_init();
 Bool device_deinit();
+Bool device_set_object_debug_name (VkObjectType object_type, Uint64 handle, CString name);
 
 /**
  * @c Device buffer data.

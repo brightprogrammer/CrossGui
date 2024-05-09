@@ -129,9 +129,7 @@ typedef struct RenderPass {
      * @b Tagged union to store graphics pipelines for different renderpass type.
      * */
     union {
-        struct {
-            GraphicsPipeline pipeline;
-        } default_graphics;
+        GraphicsPipeline default_graphics;
     } pipelines;
 } RenderPass;
 
