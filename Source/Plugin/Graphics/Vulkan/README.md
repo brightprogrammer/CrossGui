@@ -1,5 +1,33 @@
 # CrossGui Vulkan Graphics Plugin
 
+## [[**Wed, 15th May 2024**]]
+
+Been thinking of refactoring the plugin to add one draw call rendering, but had a
+fever for past three-four days. I took medicine yesterday and now feeling a bit better.
+
+The refactoring goals goes like this :
+
+- We need dynamic device memory for dynamically resizing the vertex and uniform buffers and
+  copy-pasting the shape, vertex, etc.. data to the GPU.
+- Allow creation of staging buffers and sending of shape data as uniform data that is local
+  to the GPU. This will make sure that shape data is fast accessible.
+  NOTE: Shape data is not susceptible to frequent changes.
+- Send an array of `XuiRenderShape` data as uniform buffer to GPU. This shape data is not
+  supposed to change a lot.
+  We want the shape data to be changeable however. So we'll provide features like
+
+   - xui_render_shape2d_clear(shape)
+   - xui_render_shape2d_add_vertex(shape, x, y, z, color_id)
+   - xui_render_shape2d_upload_to_gpu(shape)
+
+  The final upload to gpu call will instruct the plugin to send the shape data to the GPU. The plugin
+  can either send it right at that moment, or we can setup a job queue that is flushed once the queue
+  is full.
+
+- Render EVERYTHING in a SINGLE DRAW CALL by sending variable data as vertex buffers,
+  and shape data as an enumerated value inside vertex buffer that indexes into the array
+  of shapes in uniform.
+
 ## [[**Thu, 9th May 2024**]]
 
 - Added helper method for naming of vulkan handles. This helps the validation layer

@@ -1,6 +1,6 @@
 /**
- * @file Graphics.h
- * @date Sat, 20st January 2024
+ * @file API.h
+ * @date Sat, 20th April 2024
  * @author Siddharth Mishra (admin@brightprogrammer.in)
  * @copyright Copyright 2024 Siddharth Mishra
  * @copyright Copyright 2024 Anvie Labs
@@ -30,34 +30,12 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * */
 
-#ifndef ANVIE_CROSSGUI_GRAPHICS_H
-#define ANVIE_CROSSGUI_GRAPHICS_H
+#ifndef ANVIE_CROSSGUI_PLUGIN_GRAPHICS_API_H
+#define ANVIE_CROSSGUI_PLUGIN_GRAPHICS_API_H
 
-#include <Anvie/Types.h>
+#include "Api/Common.h"
+#include "Api/Graphics.h"
+#include "Api/Shape2D.h"
+#include "Api/GraphicsContext.h"
 
-typedef struct Position2D {
-    Float32 x;
-    Float32 y;
-} Position2D;
-
-typedef struct Scale2D {
-    Float32 w; /**< @b Scale width of shape by this factor. */
-    Float32 h; /**< @b Scale height of shape by this factor. */
-} Scale2D;
-
-typedef struct Color {
-    Float32 r;
-    Float32 g;
-    Float32 b;
-    Float32 a;
-} Color;
-
-typedef struct Rect2D {
-    Position2D position; /**< @b Rectangle position. */
-    Scale2D    scale;    /**< @b Scale position. */
-    Color      color;
-    Float32    depth;    /**< @b Depth (z) at which this rect must be rendered. */
-} Rect2D;
-
-
-#endif // ANVIE_CROSSGUI_GRAPHICS_H
+#endif // ANVIE_CROSSGUI_PLUGIN_GRAPHICS_API_H

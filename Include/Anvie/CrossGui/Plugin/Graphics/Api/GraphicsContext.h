@@ -1,6 +1,6 @@
 /**
- * @file API.h
- * @date Sat, 20th April 2024
+ * @file GraphicsContext.h
+ * @date Wed, 15th May 2024
  * @author Siddharth Mishra (admin@brightprogrammer.in)
  * @copyright Copyright 2024 Siddharth Mishra
  * @copyright Copyright 2024 Anvie Labs
@@ -30,58 +30,13 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * */
 
-#ifndef ANVIE_CROSSGUI_PLUGIN_GRAPHICS_API_H
-#define ANVIE_CROSSGUI_PLUGIN_GRAPHICS_API_H
+#ifndef ANVIE_CROSSGUI_PLUGIN_GRAPHICS_API_GRAPHICS_CONTEXT_H
+#define ANVIE_CROSSGUI_PLUGIN_GRAPHICS_API_GRAPHICS_CONTEXT_H
 
 #include <Anvie/Types.h>
 
-/* crosswindow */
-#include <Anvie/CrossWindow/Window.h>
-
-/* crossgui */
-#include <Anvie/CrossGui/Graphics.h>
-
-/**
- * @b Set of possible values returned by render/draw methods.
- * */
-typedef enum XuiRenderStatus {
-    /**
-     * @b Treated same as @x XUI_RENDER_STATUS_ERR
-     * */
-    XUI_RENDER_STATUS_UNKNOWN = 0,
-
-    /**
-     * @b Something bad happened, and it's not recoverable. Cannot continue.
-     * 
-     * When a render (draw) method returns this value, the plugin must not call
-     * the draw method again because that won't solve the problem. The method to
-     * solve this is probably plugin dependent.
-     * */
-    XUI_RENDER_STATUS_ERR = XUI_RENDER_STATUS_UNKNOWN,
-
-    /**
-    * @b Everything's ok! keep going...
-    *
-    * This return value from a render (draw) method means the draw
-    * call was processed successfully and user code can continue to
-    * render.
-    * */
-    XUI_RENDER_STATUS_OK,
-
-    /**
-     * @b Something bad happened, but continue to recover from it. 
-     * 
-     * When a render (draw) method returns this value, the plugin user must
-     * not continue further but treat that frame as dropped, and try to render again
-     * from the beginning. This will automatically recover the renderer from the error.
-     * 
-     * This usually happens when the window is resized or is moved from one screen
-     * to other.
-     * */
-    XUI_RENDER_STATUS_CONTINUE,
-
-    XUI_RENDER_STATUS_MAX /**< @b Number of render status enums */
-} XuiRenderStatus;
+/* fwd declarations */
+typedef struct XwWindow XwWindow;
 
 /**
  * @b Opaque structure, defined by the plugin.
@@ -126,34 +81,4 @@ typedef void (*XuiGraphicsContextDestroy) (XuiGraphicsContext *gctx);
  * */
 typedef Bool (*XuiGraphicsContextResize) (XuiGraphicsContext *graphics_context, XwWindow *xwin);
 
-/**
- * @b Plugin must render given 2D shape.
- *
- * This is a per-vertex draw call.  
- *
- * @param graphics_context The @c XuiGraphicsContext object created for @x xwin.
- * @param xwin @c XwWindow object used to create @c graphics context.
- * @param vertices Array of 2D vertices.
- * @param vertex_count Number of vertices.
- *
- * @return True if draw was successful.
- * @return False otherwise.
- * */
-typedef XuiRenderStatus (*XuiGraphicsDrawRect2D) (
-    XuiGraphicsContext *graphics_context,
-    XwWindow           *xwin,
-    Rect2D              rect
-);
-
-/**
- * @b Clear images of swapchain in given @x XuiGraphicsContext object.
- *
- * @param graphics_context 
- * @param xwin 
- *
- * @return @c XUI_RENDER_STATUS_OK on success.
- * @return @c XUI_RENDER_STATUS_ERR otherwise.
- * */
-typedef XuiRenderStatus (*XuiGraphicsClear) (XuiGraphicsContext *graphics_context, XwWindow *xwin);
-
-#endif // ANVIE_CROSSGUI_PLUGIN_GRAPHICS_API_H
+#endif // ANVIE_CROSSGUI_PLUGIN_GRAPHICS_API_GRAPHICS_CONTEXT_H
