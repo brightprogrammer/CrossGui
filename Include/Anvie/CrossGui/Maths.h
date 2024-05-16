@@ -1,6 +1,6 @@
 /**
  * @file Maths.h
- * @date Sat, 20th January 2024
+ * @date Wed, 15th May 2024
  * @author Siddharth Mishra (admin@brightprogrammer.in)
  * @copyright Copyright 2024 Siddharth Mishra
  * @copyright Copyright 2024 Anvie Labs
@@ -52,8 +52,8 @@ typedef union Vec2f {
 
 Vec2f  *vec2f_add (Vec2f *res, Vec2f *vec1, Vec2f *vec2);
 Vec2f  *vec2f_sub (Vec2f *res, Vec2f *vec1, Vec2f *vec2);
-Vec2f  *vec2f_cross (Vec2f *res, Vec2f *vec1, Vec2f *vec2);
-Vec2f  *vec2f_normalize (Vec2f *res, Vec2f *vec1, Vec2f *vec2);
+Vec2f  *vec2f_normalize (Vec2f *res, Vec2f *vec);
+Vec2f  *vec2f_mul_f32 (Vec2f *res, Vec2f *vec, Float32 scalar);
 Float32 vec2f_dot (Vec2f *vec1, Vec2f *vec2);
 Float32 vec2f_norm (Vec2f *vec);
 
@@ -84,7 +84,8 @@ typedef union Vec3f {
 Vec3f  *vec3f_add (Vec3f *res, Vec3f *vec1, Vec3f *vec2);
 Vec3f  *vec3f_sub (Vec3f *res, Vec3f *vec1, Vec3f *vec2);
 Vec3f  *vec3f_cross (Vec3f *res, Vec3f *vec1, Vec3f *vec2);
-Vec3f  *vec3f_normalize (Vec3f *res, Vec3f *vec1, Vec3f *vec2);
+Vec3f  *vec3f_normalize (Vec3f *res, Vec3f *vec);
+Vec3f  *vec3f_mul_f32 (Vec3f *res, Vec3f *vec, Float32 scalar);
 Float32 vec3f_dot (Vec3f *vec1, Vec3f *vec2);
 Float32 vec3f_norm (Vec3f *vec);
 
@@ -127,8 +128,8 @@ typedef union Vec4f {
 
 Vec4f  *vec4f_add (Vec4f *res, Vec4f *vec1, Vec4f *vec2);
 Vec4f  *vec4f_sub (Vec4f *res, Vec4f *vec1, Vec4f *vec2);
-Vec4f  *vec4f_cross (Vec4f *res, Vec4f *vec1, Vec4f *vec2);
-Vec4f  *vec4f_normalize (Vec4f *res, Vec4f *vec1, Vec4f *vec2);
+Vec4f  *vec4f_normalize (Vec4f *res, Vec4f *vec);
+Vec4f  *vec4f_mul_f32 (Vec4f *res, Vec4f *vec, Float32 scalar);
 Float32 vec4f_dot (Vec4f *vec1, Vec4f *vec2);
 Float32 vec4f_norm (Vec4f *vec);
 
@@ -137,41 +138,41 @@ typedef union Mat2f {
     Float32 elem[2][2];
 } Mat2f;
 
-Mat2f *mat2f_add (Mat2f *res, Mat2f *mat1, Mat2f *mat2);
-Mat2f *mat2f_sub (Mat2f *res, Mat2f *mat1, Mat2f *mat2);
-Mat2f *mat2f_mul (Mat2f *res, Mat2f *mat1, Mat2f *mat2);
-Mat2f *mat2f_transpose (Mat2f *res, Mat2f *mat);
-Mat2f *mat2f_invert (Mat2f *res, Mat2f *mat);
-Mat2f *mat2f_premul_vec (Mat2f *res, Vec4f *vec, Mat2f *mat);
-Mat2f *mat2f_postmul_vec (Mat2f *res, Mat2f *mat, Vec4f *vec);
-Mat2f *mat2f_mul_f32 (Mat2f *mat, Float32 scale);
+Mat2f  *mat2f_add (Mat2f *res, Mat2f *mat1, Mat2f *mat2);
+Mat2f  *mat2f_sub (Mat2f *res, Mat2f *mat1, Mat2f *mat2);
+Mat2f  *mat2f_mul (Mat2f *res, Mat2f *mat1, Mat2f *mat2);
+Mat2f  *mat2f_transpose (Mat2f *res, Mat2f *mat);
+Mat2f  *mat2f_invert (Mat2f *res, Mat2f *mat);
+Vec2f  *mat2f_mul_vec (Vec2f *res, Mat2f *mat, Vec2f *vec);
+Mat2f  *mat2f_mul_f32 (Mat2f *res, Mat2f *mat, Float32 scale);
+Float32 mat2f_det (Mat2f *mat);
 
 typedef union Mat3f {
     Vec3f   column[3];
     Float32 elem[3][3];
 } Mat3f;
 
-Mat3f *mat3f_add (Mat3f *res, Mat3f *mat1, Mat3f *mat2);
-Mat3f *mat3f_sub (Mat3f *res, Mat3f *mat1, Mat3f *mat2);
-Mat3f *mat3f_mul (Mat3f *res, Mat3f *mat1, Mat3f *mat2);
-Mat3f *mat3f_transpose (Mat3f *res, Mat3f *mat);
-Mat3f *mat3f_invert (Mat3f *res, Mat3f *mat);
-Mat3f *mat3f_premul_vec (Mat3f *res, Vec4f *vec, Mat3f *mat);
-Mat3f *mat3f_postmul_vec (Mat3f *res, Mat3f *mat, Vec4f *vec);
-Mat3f *mat3f_mul_f32 (Mat3f *mat, Float32 scale);
+Mat3f  *mat3f_add (Mat3f *res, Mat3f *mat1, Mat3f *mat2);
+Mat3f  *mat3f_sub (Mat3f *res, Mat3f *mat1, Mat3f *mat2);
+Mat3f  *mat3f_mul (Mat3f *res, Mat3f *mat1, Mat3f *mat2);
+Mat3f  *mat3f_transpose (Mat3f *res, Mat3f *mat);
+Mat3f  *mat3f_invert (Mat3f *res, Mat3f *mat);
+Vec3f  *mat3f_mul_vec (Vec3f *res, Mat3f *mat, Vec3f *vec);
+Mat3f  *mat3f_mul_f32 (Mat3f *res, Mat3f *mat, Float32 scale);
+Float32 mat3f_det (Mat3f *mat);
 
 typedef union Mat4f {
     Vec4f   column[4];
     Float32 elem[4][4];
 } Mat4f;
 
-Mat4f *mat4f_add (Mat4f *res, Mat4f *mat1, Mat4f *mat2);
-Mat4f *mat4f_sub (Mat4f *res, Mat4f *mat1, Mat4f *mat2);
-Mat4f *mat4f_mul (Mat4f *res, Mat4f *mat1, Mat4f *mat2);
-Mat4f *mat4f_transpose (Mat4f *res, Mat4f *mat);
-Mat4f *mat4f_invert (Mat4f *res, Mat4f *mat);
-Mat4f *mat4f_premul_vec (Mat4f *res, Vec4f *vec, Mat4f *mat);
-Mat4f *mat4f_postmul_vec (Mat4f *res, Mat4f *mat, Vec4f *vec);
-Mat4f *mat4f_mul_f32 (Mat4f *mat, Float32 scale);
+Mat4f  *mat4f_add (Mat4f *res, Mat4f *mat1, Mat4f *mat2);
+Mat4f  *mat4f_sub (Mat4f *res, Mat4f *mat1, Mat4f *mat2);
+Mat4f  *mat4f_mul (Mat4f *res, Mat4f *mat1, Mat4f *mat2);
+Mat4f  *mat4f_transpose (Mat4f *res, Mat4f *mat);
+Mat4f  *mat4f_invert (Mat4f *res, Mat4f *mat);
+Vec4f  *mat4f_mul_vec (Vec4f *res, Mat4f *mat, Vec4f *vec);
+Mat4f  *mat4f_mul_f32 (Mat4f *res, Mat4f *mat, Float32 scale);
+Float32 mat4f_det (Mat4f *mat);
 
 #endif // ANVIE_CROSSGUI_MATHS_H
