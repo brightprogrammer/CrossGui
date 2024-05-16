@@ -38,6 +38,7 @@
 
 /* libc includes */
 #include <memory.h>
+#include <string.h>
 #include <vulkan/vulkan_core.h>
 
 static PFN_vkSetDebugUtilsObjectNameEXT setDebugUtilsObjectNameEXT = Null;
@@ -319,7 +320,18 @@ DeviceBuffer *device_buffer_init (
     Size offset = 0;
     vkBindBufferMemory (device, buffer->buffer, buffer->memory, offset);
 
-    buffer->size = size;
+    /* device memory stays mapped */
+    buffer->mapped_mem = Null;
+    GOTO_HANDLER_IF (
+        vkMapMemory (device, buffer->memory, 0, size, 0, &buffer->mapped_mem) != VK_SUCCESS,
+        INIT_FAILED,
+        "Failed to map device buffer memory\n"
+    );
+
+    buffer->size               = size;
+    buffer->usage              = usage;
+    buffer->mem_property       = mem_property;
+    buffer->queue_family_index = queue_family_index;
 
     return buffer;
 
@@ -344,6 +356,10 @@ DeviceBuffer *device_buffer_deinit (DeviceBuffer *buffer) {
     vkDeviceWaitIdle (device);
 
     if (buffer->memory) {
+        if (buffer->mapped_mem) {
+            vkUnmapMemory (device, buffer->memory);
+        }
+
         vkFreeMemory (device, buffer->memory, Null);
     }
 
@@ -364,18 +380,55 @@ DeviceBuffer *device_buffer_deinit (DeviceBuffer *buffer) {
  * @param data Pointer to data to be copied.
  * @param size Size of data to be copied in number of bytes.
  *
- * @return @c bo on success.
- * @return @c {0, 0} otherwise
+ * @return @c buffer on success.
+ * @return @c Null otherwise
  * */
 DeviceBuffer *device_buffer_memcpy (DeviceBuffer *buffer, void *data, Size size) {
     RETURN_VALUE_IF (!buffer || !data || !size, Null, ERR_INVALID_ARGUMENTS);
 
-    VkDevice device = vk.device.logical;
+    /* memory first mapped in init and first unmapped in deinit */
+    memcpy (buffer->mapped_mem, data, size);
 
-    void *mapped_data = Null;
-    vkMapMemory (device, buffer->memory, 0, size, 0, &mapped_data);
-    memcpy (mapped_data, data, size);
-    vkUnmapMemory (device, buffer->memory);
+    return buffer;
+}
+
+/**
+ * @b Resize given buffer's memory.
+ *
+ * HACK: for now this works by deinit and init with new size, but later on,
+ *       please implement a heap for device.
+ *
+ * @param buffer @c DeviceBuffer object to be resized.
+ * @param size New size of buffer.
+ * 
+ * @return @c buffer on success.
+ * @return @c Null otherwise
+ * */
+DeviceBuffer *device_buffer_resize (DeviceBuffer *buffer, Size size) {
+    RETURN_VALUE_IF (!buffer || !size, Null, ERR_INVALID_ARGUMENTS);
+
+    /* create new buffer */
+    DeviceBuffer tmpbuf;
+    RETURN_VALUE_IF (
+        !device_buffer_init (
+            &tmpbuf,
+            buffer->usage,
+            size,
+            buffer->mem_property,
+            buffer->queue_family_index
+        ),
+        Null,
+        "Failed to create new buffer for resizing.\n"
+    );
+
+    /* copy data from old to new buffer */
+    memcpy (tmpbuf.mapped_mem, buffer->mapped_mem, buffer->size);
+
+    /* deinit old buffer contents */
+    device_buffer_deinit (buffer);
+
+    /* make old buffer same as new one */
+    *buffer = tmpbuf;
 
     return buffer;
 }

@@ -31,7 +31,7 @@
  * */
 
 #include <Anvie/Common.h>
-#include <Anvie/CrossGui/Maths.h>
+#include <Anvie/CrossGui/Utils/Maths.h>
 
 /* libm */
 #include <math.h>
@@ -479,7 +479,6 @@ Mat3f *mat3f_invert (Mat3f *res, Mat3f *mat) {
 
     Mat3f *mat1 = mat;
 
-    // TODO: this might be wrong
     RETURN_VALUE_IF (
         (!vec3f_cross (COL (res, 0), COL (mat1, 1), COL (mat1, 2)) ||
          !vec3f_cross (COL (res, 1), COL (mat1, 2), COL (mat1, 0)) ||
@@ -628,8 +627,6 @@ Mat4f *mat4f_transpose (Mat4f *res, Mat4f *mat) {
 
 Mat4f *mat4f_invert (Mat4f *res, Mat4f *mat) {
     RETURN_VALUE_IF (!res || !mat, Null, ERR_INVALID_ARGUMENTS);
-
-    Mat4f *mat1 = mat;
 
     /* following algorithm is referenced from here :
      * https://github.com/HandmadeMath/HandmadeMath/blob/43836aa3a6226682b594a6ba818baf16c0538b81/HandmadeMath.h#L1701 

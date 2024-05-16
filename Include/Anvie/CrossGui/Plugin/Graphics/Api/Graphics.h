@@ -33,6 +33,13 @@
 #ifndef ANVIE_CROSSGUI_PLUGIN_GRAPHICS_API_GRAPHICS_H
 #define ANVIE_CROSSGUI_PLUGIN_GRAPHICS_API_GRAPHICS_H
 
+#include "Common.h"
+
+/* fwd declarations */
+typedef struct XuiGraphicsContext XuiGraphicsContext;
+typedef struct XwWindow           XwWindow;
+typedef struct XuiShapeInstance2D XuiShapeInstance2D;
+
 /**
  * @b Plugin must render given 2D shape.
  *
@@ -46,10 +53,10 @@
  * @return True if draw was successful.
  * @return False otherwise.
  * */
-typedef XuiRenderStatus (*XuiGraphicsDrawRect2D) (
+typedef XuiRenderStatus (*XuiGraphicsDraw2D) (
     XuiGraphicsContext *graphics_context,
     XwWindow           *xwin,
-    Rect2D              rect
+    XuiShapeInstance2D *shape_instance
 );
 
 /**

@@ -61,9 +61,13 @@ Bool device_set_object_debug_name (VkObjectType object_type, Uint64 handle, CStr
  * @c Device buffer data.
  * */
 typedef struct DeviceBuffer {
-    Size           size;   /**< @b Allocation size */
-    VkBuffer       buffer; /**< @b Buffer handle */
-    VkDeviceMemory memory; /**< @b Buffer allocated memory handle. */
+    Size                  size;   /**< @b Allocation size */
+    VkBuffer              buffer; /**< @b Buffer handle */
+    VkDeviceMemory        memory; /**< @b Buffer allocated memory handle. */
+    VkBufferUsageFlags    usage;
+    VkMemoryPropertyFlags mem_property;
+    Uint32                queue_family_index;
+    void* mapped_mem;
 } DeviceBuffer;
 
 DeviceBuffer *device_buffer_init (
@@ -75,6 +79,7 @@ DeviceBuffer *device_buffer_init (
 );
 DeviceBuffer *device_buffer_deinit (DeviceBuffer *buffer);
 DeviceBuffer *device_buffer_memcpy (DeviceBuffer *buffer, void *data, Size size);
+DeviceBuffer *device_buffer_resize (DeviceBuffer *buffer, Size size);
 
 /**
  * @b Device image data.

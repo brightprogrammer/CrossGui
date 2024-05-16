@@ -33,6 +33,24 @@
 #ifndef ANVIE_CROSSGUI_PLUGIN_GRAPHICS_API_SHAPE2D_H
 #define ANVIE_CROSSGUI_PLUGIN_GRAPHICS_API_SHAPE2D_H
 
+#include <Anvie/Types.h>
+
+/* crossgui */
+#include <Anvie/CrossGui/Utils/Maths.h>
+
+/**
+ * @b The fill type allows the plugin to decide which rendering approach
+ *    it must use. An example is that in vulkan the plugin can select different
+ *    pipelines based on different fill types.
+ * */
+typedef enum XuiShapeFillType2D {
+    XUI_SHAPE_FILL_TYPE_2D_UNKNOWN = 0,
+    XUI_SHAPE_FILL_TYPE_2D_FILL, /**< @b Fill the shape with given color/texture data. */
+    XUI_SHAPE_FILL_TYPE_2D_OUTLINE, /**< @b Just outline the shape treating pair of adjacent vertices as lines. */
+    XUI_SHAPE_FILL_TYPE_2D_POINTS, /**< @b Just draw the vertices as points, no fill, no outline. */
+    XUI_SHAPE_FILL_TYPE_2D_MAX
+} XuiShapeFillType2D;
+
 /**
  * @b Opaque structure defined inside the plugin.
  *
@@ -41,5 +59,27 @@
  * to communicate with respective plugin.
  * */
 typedef struct XuiShape2D XuiShape2D;
+
+/* TODO: 
+ * - add documentation for these Api methods,
+ * - define them in vulkan plugin
+ * - create shape manager (create new shapes, add vertices, add shapes to queue to be sent to gpu)
+ * - create dynamic vector to store shape data
+ * - send shape data to gpu as uniform buffer jsut before draw if not sent already!
+ * */
+typedef XuiShape2D *(*XuiShapeCreate2D)();
+typedef XuiShape2D *(*XuiShapeDestroy2D) (XuiShape2D *shape);
+typedef XuiShape2D *(*XuiShapeReset2D) (XuiShape2D *shape);
+typedef XuiShape2D *(*XuiShapeReserve2D) (XuiShape2D *shape, Size num_vertices);
+typedef XuiShape2D *(*XuiShapeAddVertex2D) (XuiShape2D *shape, Vec2f *vertex);
+typedef XuiShape2D *(*XuiShapeFinalize2D) (XuiShape2D *shape);
+
+typedef struct XuiShapeInstance2D {
+    XuiShape2D *shape;
+    Vec4f       color;
+    Vec2f       position;
+    Vec2f       scale;
+    Float32     depth;
+} XuiShapeInstance2D;
 
 #endif // ANVIE_CROSSGUI_PLUGIN_GRAPHICS_API_SHAPE2D_H
