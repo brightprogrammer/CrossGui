@@ -50,10 +50,11 @@ void vector_destroy (void *vec) {
  *
  * @param vec Pointer to vector memory region to be resized.
  * @param entry_size Size of each entry in vector.
- * @param old_count Previous vector capacity.
- * @param new_count New vector capacity to resize to.
+ * @param old_count Previous number of elements in vector.
+ * @param new_count Number of elements new vector must hold. 
  * @param old_capacity Old capacity of given vector.
- * @param new_capacity Pointer to @c Size variable, where new capacity of vector will be stored.
+ * @param new_capacity Pointer to @c Size variable, where new capacity of
+ *        vector will be stored. This value is not read from but only stored into.
  *
  * @return Pointer to new vector memory region if reallocated,
  *         otherwise @c vec will be returned.

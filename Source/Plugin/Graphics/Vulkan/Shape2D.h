@@ -1,6 +1,6 @@
 /**
- * @file Graphics.h
- * @date Sat, 20th April 2024
+ * @file Shape2D.h
+ * @date Fri, 17th May 2024
  * @author Siddharth Mishra (admin@brightprogrammer.in)
  * @copyright Copyright 2024 Siddharth Mishra
  * @copyright Copyright 2024 Anvie Labs
@@ -30,31 +30,26 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * */
 
-#ifndef ANVIE_CROSSGUI_PLUGIN_GRAPHICS_GRAPHICS_H
-#define ANVIE_CROSSGUI_PLUGIN_GRAPHICS_GRAPHICS_H
+#include <Anvie/Types.h>
 
-#include <Anvie/CrossGui/Plugin/Graphics/Api.h>
+/* fwd declarations */
+typedef union Vec2f Vec2f;
 
 /**
- * @b Defines set of callbacks to be used to interact with the plugin.
+ * @b Shape is just an array of vertices.
  * */
-typedef struct XuiGraphicsPlugin {
-    /* graphics context methods */
-    XuiGraphicsContextCreate  context_create;
-    XuiGraphicsContextDestroy context_destroy;
-    XuiGraphicsContextResize  context_resize;
+typedef struct XuiShape2D {
+    Size   vertex_count;
+    Size   vertex_capacity;
+    Vec2f *vertices;
 
-    /* shape 2d methods */
-    XuiShapeCreate2D     shape_create_2d;
-    XuiShapeDestroy2D    shape_destroy_2d;
-    XuiShapeReset2D      shape_reset_2d;
-    XuiShapeReserve2D    shape_reserve_2d;
-    XuiShapeAddVertices2D  shape_add_vertices_2d;
-    XuiShapeIsComplete2D shape_is_complete_2d;
+    /**< @b Set to @c True after @c shape_is_complete_2d is called. */
+    Bool is_complete;
+} XuiShape2D;
 
-    /* drawing methods */
-    XuiGraphicsDraw2D draw_2d;
-    XuiGraphicsClear  clear;
-} XuiGraphicsPlugin;
-
-#endif // ANVIE_CROSSGUI_PLUGIN_GRAPHICS_GRAPHICS_H
+XuiShape2D *shape_create_2d();
+void        shape_destroy_2d (XuiShape2D *shape);
+XuiShape2D *shape_reset_2d (XuiShape2D *shape);
+XuiShape2D *shape_reserve_2d (XuiShape2D *shape, Size num_vertices);
+XuiShape2D *shape_add_vertices_2d (XuiShape2D *shape, Vec2f *vertices, Size num_vertices);
+XuiShape2D *shape_is_complete_2d (XuiShape2D *shape);
