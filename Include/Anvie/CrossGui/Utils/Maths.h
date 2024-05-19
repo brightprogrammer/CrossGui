@@ -47,7 +47,7 @@ typedef union ALIGN (8) Vec2f {
     GEN_VEC2F (u, v);
     GEN_VEC2F (width, height);
 
-    Float32 data[3];
+    Float32 data[2];
 
 #undef GEN_VEC2F
 } Vec2f;

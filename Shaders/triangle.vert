@@ -5,10 +5,10 @@ layout (location = 0) in vec2 in_position;
 layout (location = 0) out vec4 out_color;
 
 layout (std140, set = 0, binding = 0) uniform UiData {
-    vec4  color;
-    vec3  position;
-    vec2  size;
     int ignore;
+    vec2  size;
+    vec3  position;
+    vec4  color;
 } ui_data;
 
 void main() {

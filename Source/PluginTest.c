@@ -12,10 +12,6 @@
 #include <Anvie/CrossGui/Plugin/Graphics/Graphics.h>
 #include <Anvie/CrossGui/Plugin/Plugin.h>
 
-/* for plugin loading */
-#include <dlfcn.h>
-#include <time.h>
-
 typedef enum MeshType {
     MESH_TYPE_RECTANGLE = 0,
     MESH_TYPE_TRIANGLE1,
