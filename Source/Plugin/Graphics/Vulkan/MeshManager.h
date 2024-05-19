@@ -1,6 +1,6 @@
 /**
- * @file Shape2D.h
- * @date Fri, 17th May 2024
+ * @file MeshManager.h
+ * @date Sun, 19th May 2024
  * @author Siddharth Mishra (admin@brightprogrammer.in)
  * @copyright Copyright 2024 Siddharth Mishra
  * @copyright Copyright 2024 Anvie Labs
@@ -30,26 +30,36 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * */
 
+#ifndef ANVIE_SOURCE_CROSSGUI_PLUGIN_GRAPHICS_VULKAN_MESH_MANAGER_H
+#define ANVIE_SOURCE_CROSSGUI_PLUGIN_GRAPHICS_VULKAN_MESH_MANAGER_H
+
 #include <Anvie/Types.h>
 
-/* fwd declarations */
-typedef union Vec2f Vec2f;
+/* local inclueds */
+#include "Device.h"
 
-/**
- * @b Shape is just an array of vertices.
- * */
-typedef struct XuiShape2D {
-    Size   vertex_count;
-    Size   vertex_capacity;
-    Vec2f *vertices;
+/* fwd-declaration */
+typedef struct XuiMesh2D XuiMesh2D;
 
-    /**< @b Set to @c True after @c shape_is_complete_2d is called. */
-    Bool is_complete;
-} XuiShape2D;
+typedef struct MeshData2D {
+    Uint32       type; /**< @b A unique ID assigned to each mesh by the user code. */
+    DeviceBuffer vertex;
+    Size vertex_count;
+    DeviceBuffer index;
+    Size index_count;
+} MeshData2D;
 
-XuiShape2D *shape_create_2d();
-void        shape_destroy_2d (XuiShape2D *shape);
-XuiShape2D *shape_reset_2d (XuiShape2D *shape);
-XuiShape2D *shape_reserve_2d (XuiShape2D *shape, Size num_vertices);
-XuiShape2D *shape_add_vertices_2d (XuiShape2D *shape, Vec2f *vertices, Size num_vertices);
-XuiShape2D *shape_is_complete_2d (XuiShape2D *shape);
+typedef struct MeshManager {
+    struct {
+        Size        count;
+        Size        capacity;
+        MeshData2D *data;
+    } mesh_data_2d;
+} MeshManager;
+
+MeshManager *mesh_manager_init (MeshManager *mm);
+MeshManager *mesh_manager_deinit (MeshManager *mm);
+MeshManager *mesh_manager_upload_mesh_2d (MeshManager *mm, XuiMesh2D *mesh);
+MeshData2D  *mesh_manager_get_mesh_data_by_type (MeshManager *mm, Uint32 type);
+
+#endif // ANVIE_SOURCE_CROSSGUI_PLUGIN_GRAPHICS_VULKAN_MESH_MANAGER_H

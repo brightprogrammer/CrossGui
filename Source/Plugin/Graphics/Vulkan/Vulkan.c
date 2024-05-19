@@ -38,15 +38,14 @@
 /* crosswindow */
 #include <Anvie/CrossWindow/Vulkan.h>
 
-/* crossgui */
+/* crossgui/plugin */
 #include <Anvie/CrossGui/Plugin/Graphics/Graphics.h>
 #include <Anvie/CrossGui/Plugin/Plugin.h>
-#include <vulkan/vulkan_core.h>
 
 /* local includes */
-#include "Anvie/CrossGui/Graphics.h"
 #include "Device.h"
 #include "GraphicsContext.h"
+#include "MeshManager.h"
 #include "Renderer.h"
 #include "Vulkan.h"
 
@@ -93,8 +92,7 @@ static Bool init() {
 
             /* Extensions required by this application on it's own 
              * Any new required extensions must be added to this array */
-            static const CString my_exts[]    = {
-            VK_EXT_DEBUG_UTILS_EXTENSION_NAME};
+            static const CString my_exts[]    = {VK_EXT_DEBUG_UTILS_EXTENSION_NAME};
             Size                 my_ext_count = ARRAY_SIZE (my_exts);
 
             /* total number of extensions */
@@ -167,37 +165,12 @@ static Bool init() {
     /* initialize commonly shared device */
     GOTO_HANDLER_IF (!device_init(), INIT_FAILED, "Failed to initialize logical device.\n");
 
-    /* initialize shape VertexBufferObjects */
-    {
-        Position2D v1 = {.x = 1.f, .y = 1.f};
-        Position2D v2 = {.x = 1.f, .y = -1.f};
-        Position2D v3 = {.x = -1.f, .y = -1.f};
-        Position2D v4 = {.x = -1.f, .y = 1.f};
-
-        Position2D rect_2d_vert_positions[] = {v1, v2, v3, v1, v3, v4};
-
-        GOTO_HANDLER_IF (
-            !device_buffer_init (
-                &vk.shapes.rect_2d,
-                VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-                sizeof (rect_2d_vert_positions),
-                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                vk.device.graphics_queue.family_index
-            ),
-            INIT_FAILED,
-            "Failed to initialize shapes vertex data\n"
-        );
-
-        GOTO_HANDLER_IF (
-            !device_buffer_memcpy (
-                &vk.shapes.rect_2d,
-                &rect_2d_vert_positions,
-                sizeof (rect_2d_vert_positions)
-            ),
-            INIT_FAILED,
-            "Failed to upload shapes data to gpu\n"
-        );
-    }
+    /* initialize mesh manager */
+    GOTO_HANDLER_IF (
+        !mesh_manager_init (&vk.mesh_manager),
+        INIT_FAILED,
+        "Failed to initialize the mesh manager\n"
+    );
 
     return True;
 
@@ -216,9 +189,7 @@ INIT_FAILED:
  * */
 static Bool deinit() {
     /* deinit shapes */
-    if (vk.shapes.rect_2d.buffer) {
-        device_buffer_deinit (&vk.shapes.rect_2d);
-    }
+    mesh_manager_deinit (&vk.mesh_manager);
 
     /* deinit logical device if created */
     if (vk.device.logical) {
@@ -242,6 +213,11 @@ static Bool deinit() {
     return True;
 }
 
+static Bool mesh_upload_2d (XuiMesh2D *mesh) {
+    RETURN_VALUE_IF (!mesh, False, ERR_INVALID_ARGUMENTS);
+    return !!mesh_manager_upload_mesh_2d (&vk.mesh_manager, mesh);
+}
+
 /**************************************************************************************************/
 /****************************************** PLUGIN DATA *******************************************/
 /**************************************************************************************************/
@@ -253,9 +229,12 @@ static XuiGraphicsPlugin vulkan_graphics_plugin_data = {
     .context_destroy = graphics_context_destroy,
     .context_resize  = graphics_context_resize,
 
+    /* shape methods */
+    .mesh_upload_2d = mesh_upload_2d,
+
     /* drawing methods */
-    .draw_rect_2d = gfx_draw_rect_2d,
-    .clear = gfx_clear
+    .draw_2d = gfx_draw_2d,
+    .clear   = gfx_clear
 };
 
 /**

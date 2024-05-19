@@ -32,17 +32,17 @@
 
 #include <Anvie/Common.h>
 
-/* crossgui */
-#include <Anvie/CrossGui/Graphics.h>
+/* crosswindow */
+#include <Anvie/CrossWindow/Vulkan.h>
+
+/* crossgui-graphics-api */
+#include <Anvie/CrossGui/Plugin/Graphics/Api/Mesh2D.h>
 
 /* local includes */
 #include "GraphicsContext.h"
 #include "RenderPass.h"
+#include "Renderer.h"
 #include "Vulkan.h"
-
-#include <Anvie/CrossWindow/Vulkan.h>
-#include <vulkan/vulkan_core.h>
-
 
 /**
  * @b Create graphics context for Vulkan plugin.
@@ -78,7 +78,7 @@ XuiGraphicsContext *graphics_context_create (XwWindow *xwin) {
             !device_buffer_init (
                 &gctx->ui_data,
                 VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-                sizeof (Rect2D),
+                sizeof (XuiMeshInstance2D),
                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
                 vk.device.graphics_queue.family_index
             ) || !gctx->ui_data.size,

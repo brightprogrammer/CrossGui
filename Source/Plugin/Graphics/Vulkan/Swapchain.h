@@ -146,7 +146,14 @@ typedef struct Swapchain {
      *
      * Set to @c True in @c swapchain_reinit method.
      * */
-    Bool is_reinited;
+    Bool  is_reinited;
+
+    /**
+     * @b After a swapchain reinit, we need to change image layout of all images From
+     *    undefined to color-attachment-optimal. For this we maintain a mask for images
+     *    that are already cleared and those that aren't yet.
+     * */
+    Uint8 clear_mask;
 } Swapchain;
 
 Swapchain *swapchain_init (Swapchain *swapchain, XwWindow *win);

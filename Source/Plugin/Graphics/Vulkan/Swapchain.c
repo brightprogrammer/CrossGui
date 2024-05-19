@@ -531,6 +531,7 @@ Swapchain *swapchain_reinit (Swapchain *swapchain, XwWindow *win) {
     vkDestroySwapchainKHR (device, old_swapchain, Null);
 
     swapchain->is_reinited = True;
+    swapchain->clear_mask  = (1 << swapchain->image_count) - 1;
 
     /* After recreating the swapchain completely, ask registered RenderPass objects
      * to reinit their RenderTargets */

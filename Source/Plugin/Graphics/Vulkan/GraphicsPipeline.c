@@ -31,7 +31,7 @@
  * */
 
 /* crossgui plugin */
-#include <Anvie/CrossGui/Graphics.h>
+#include <Anvie/CrossGui/Utils/Maths.h>
 #include <vulkan/vulkan_core.h>
 
 /* local includes */
@@ -218,7 +218,7 @@ GraphicsPipeline *graphics_pipeline_init_default (
 
         /* describe how vertex data is sent to GPU */
         VkVertexInputBindingDescription vertex_binding_desc =
-            {.binding = 0, .stride = sizeof (Position2D), .inputRate = VK_VERTEX_INPUT_RATE_VERTEX};
+            {.binding = 0, .stride = sizeof (Vec2f), .inputRate = VK_VERTEX_INPUT_RATE_VERTEX};
 
         VkVertexInputAttributeDescription vertex_attribute_desc[] = {
             {.location = 0, .binding = 0, .format = VK_FORMAT_R32G32_SFLOAT, .offset = 0}

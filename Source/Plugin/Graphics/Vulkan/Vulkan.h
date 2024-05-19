@@ -40,19 +40,14 @@
 
 /* local includes */
 #include "Device.h"
+#include "MeshManager.h"
 
 typedef struct Vulkan {
     VkInstance        instance;  /**< @b Our connection with vulkan */
     VkPhysicalDevice *gpus;      /**< @b GPU handles */
     Uint32            gpu_count; /**< @b Total number of usable physical devices on host. */
     Device            device;    /**< @b Default device in use by the plugin. */
-
-    /**
-     * @b To store vertex buffer of different commonly used shapes.
-     * */
-    struct {
-        DeviceBuffer rect_2d;
-    } shapes;
+    MeshManager       mesh_manager; /**< @b Manage different shapes created using this plugin. */
 } Vulkan;
 
 /**

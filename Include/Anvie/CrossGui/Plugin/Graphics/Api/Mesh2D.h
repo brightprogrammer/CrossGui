@@ -1,5 +1,5 @@
 /**
- * @file Graphics.h
+ * @file Mesh2D.h
  * @date Wed, 15th May 2024
  * @author Siddharth Mishra (admin@brightprogrammer.in)
  * @copyright Copyright 2024 Siddharth Mishra
@@ -30,44 +30,38 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * */
 
-#ifndef ANVIE_CROSSGUI_PLUGIN_GRAPHICS_API_GRAPHICS_H
-#define ANVIE_CROSSGUI_PLUGIN_GRAPHICS_API_GRAPHICS_H
+#ifndef ANVIE_CROSSGUI_PLUGIN_GRAPHICS_API_MESH2D_H
+#define ANVIE_CROSSGUI_PLUGIN_GRAPHICS_API_MESH2D_H
 
-#include "Common.h"
+#include <Anvie/Types.h>
 
-/* fwd declarations */
-typedef struct XuiGraphicsContext XuiGraphicsContext;
-typedef struct XwWindow           XwWindow;
-typedef struct XuiMeshInstance2D  XuiMeshInstance2D;
+/* crossgui */
+#include <Anvie/CrossGui/Utils/Maths.h>
 
 /**
- * @b Plugin must render given 2D mesh.
- *
- * This is a per-vertex draw call.  
- *
- * @param graphics_context The @c XuiGraphicsContext object created for @x xwin.
- * @param xwin @c XwWindow object used to create @c graphics context.
- * @param vertices Array of 2D vertices.
- * @param vertex_count Number of vertices.
- *
- * @return True if draw was successful.
- * @return False otherwise.
+ * @b Mesh2D is created by user code and given to the plugin to upload
+ * the vertex data to the GPU. The user code then just needs the @c type
+ * of shape to create mesh instances and all this data can be freed.
  * */
-typedef XuiRenderStatus (*XuiGraphicsDraw2D) (
-    XuiGraphicsContext *graphics_context,
-    XwWindow           *xwin,
-    XuiMeshInstance2D  *mesh_instance
-);
+typedef struct XuiMesh2D {
+    Uint32  type;         /**< @b A unique ID for each mesh 2D assigned by user code. */
+    Vec2f  *vertices;     /**< @b Array of vertices for creating the mesh. */
+    Uint32  vertex_count; /**< @b Number of vertices in @c mesh_vertices array. */
+    Uint32 *indices;      /**< @b Array of indices for mesh. */
+    Uint32  index_count;  /**< @b Number of indices in the @c mesh_indices array. */
+} XuiMesh2D;
 
 /**
- * @b Clear images of swapchain in given @x XuiGraphicsContext object.
- *
- * @param graphics_context 
- * @param xwin 
- *
- * @return @c XUI_RENDER_STATUS_OK on success.
- * @return @c XUI_RENDER_STATUS_ERR otherwise.
+ * @b Stores metadata about instance of selected mesh.
+ * instance : mesh :: muscle : skeleton. 
  * */
-typedef XuiRenderStatus (*XuiGraphicsClear) (XuiGraphicsContext *graphics_context, XwWindow *xwin);
+typedef struct XuiMeshInstance2D {
+    Vec4f  color;    /**< @b Color of mesh instance. */
+    Vec3f  position; /**< @b Position of mesh instance. */
+    Vec2f  scale;    /**< @b Scale factor of mesh instance. */
+    Uint32 type;     /**< @b Selected mesh. */
+} XuiMeshInstance2D;
 
-#endif // ANVIE_CROSSGUI_PLUGIN_GRAPHICS_API_GRAPHICS_H
+typedef Bool (*XuiMeshUpload2D) (XuiMesh2D *mesh);
+
+#endif // ANVIE_CROSSGUI_PLUGIN_GRAPHICS_API_MESH2D_H

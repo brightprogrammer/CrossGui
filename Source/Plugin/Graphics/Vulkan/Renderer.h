@@ -33,14 +33,15 @@
 #ifndef ANVIE_CROSSGUI_SOURCE_PLUGIN_GRAPHICS_VULKAN_RENDERER_H
 #define ANVIE_CROSSGUI_SOURCE_PLUGIN_GRAPHICS_VULKAN_RENDERER_H
 
-#include <Anvie/CrossGui/Graphics.h>
-#include <Anvie/CrossGui/Plugin/Graphics/API.h>
+#include <Anvie/CrossGui/Plugin/Graphics/Api/Common.h>
 
 /* fwd declarations */
 typedef struct XuiGraphicsContext XuiGraphicsContext;
 typedef struct XwWindow           XwWindow;
+typedef struct XuiMeshInstance2D  XuiMeshInstance2D;
 
-XuiRenderStatus gfx_draw_rect_2d (XuiGraphicsContext *gctx, XwWindow *win, Rect2D rect);
+XuiRenderStatus
+    gfx_draw_2d (XuiGraphicsContext *gctx, XwWindow *win, XuiMeshInstance2D *mesh_instance);
 XuiRenderStatus gfx_clear (XuiGraphicsContext *gctx, XwWindow *win);
 
 #endif // ANVIE_CROSSGUI_SOURCE_PLUGIN_GRAPHICS_VULKAN_RENDERER_H

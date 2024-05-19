@@ -30,14 +30,17 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * */
 
-/* local includes */
-#include "Renderer.h"
+#include <Anvie/Common.h>
 
-#include "Anvie/Common.h"
-#include "Anvie/CrossGui/Plugin/Graphics/API.h"
+/* crossgui-graphics-api */
+#include <Anvie/CrossGui/Plugin/Graphics/Api/Mesh2D.h>
+
+/* local includes */
 #include "Device.h"
 #include "GraphicsContext.h"
+#include "MeshManager.h"
 #include "RenderPass.h"
+#include "Renderer.h"
 #include "Swapchain.h"
 #include "Vulkan.h"
 
@@ -70,7 +73,8 @@ static XuiRenderStatus end_frame (
 /*********************************** PUBLIC METHOD DEFINITIONS ************************************/
 /**************************************************************************************************/
 
-XuiRenderStatus gfx_draw_rect_2d (XuiGraphicsContext *gctx, XwWindow *win, Rect2D rect) {
+XuiRenderStatus
+    gfx_draw_2d (XuiGraphicsContext *gctx, XwWindow *win, XuiMeshInstance2D *mesh_instance) {
     RETURN_VALUE_IF (!gctx || !win, XUI_RENDER_STATUS_ERR, ERR_INVALID_ARGUMENTS);
 
     RenderPass       *render_pass      = &gctx->default_render_pass;
@@ -92,9 +96,14 @@ XuiRenderStatus gfx_draw_rect_2d (XuiGraphicsContext *gctx, XwWindow *win, Rect2
      * For this, we need to transition these images ourselves before we begin renderpass */
     if (swapchain->is_reinited) {
         PRINT_ERR ("Changed image layout on renit\n");
+
+        /* wait for pending device operations to complete */
+        vkDeviceWaitIdle (vk.device.logical);
+
+        /* change layout of all images */
         swapchain_change_image_layout (
             swapchain,
-            info.image_index,
+            info.image_index, /* swapchain image index*/
             cmd,
             VK_IMAGE_LAYOUT_UNDEFINED,
             VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
@@ -107,7 +116,9 @@ XuiRenderStatus gfx_draw_rect_2d (XuiGraphicsContext *gctx, XwWindow *win, Rect2
             VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
         );
 
-        swapchain->is_reinited = False;
+        /* mark this image as cleared */
+        swapchain->clear_mask  &= ~(1 << info.image_index);
+        swapchain->is_reinited  = !!swapchain->clear_mask;
     } else {
         swapchain_change_image_layout (
             swapchain,
@@ -140,7 +151,7 @@ XuiRenderStatus gfx_draw_rect_2d (XuiGraphicsContext *gctx, XwWindow *win, Rect2
     vkCmdBindPipeline (cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, default_pipeline->pipeline);
 
     /* update uniform buffer with GUI data */
-    device_buffer_memcpy (&gctx->ui_data, &rect, sizeof (rect));
+    device_buffer_memcpy (&gctx->ui_data, mesh_instance, sizeof (XuiMeshInstance2D));
 
     /* bind uniform buffers */
     vkCmdBindDescriptorSets (
@@ -154,23 +165,21 @@ XuiRenderStatus gfx_draw_rect_2d (XuiGraphicsContext *gctx, XwWindow *win, Rect2
         0                                  /* dynamic offsets */
     );
 
+    MeshData2D *mdata2d = mesh_manager_get_mesh_data_by_type (&vk.mesh_manager, mesh_instance->type);
+
     /* bind shape data */
     vkCmdBindVertexBuffers (
         cmd,
-        0,                                       /* first binding */
-        1,                                       /* binding count */
-        (VkBuffer[]) {vk.shapes.rect_2d.buffer}, /* buffers */
-        (VkDeviceSize[]) {0}                     /* offsets */
+        0,                                     /* first binding */
+        1,                                     /* binding count */
+        (VkBuffer[]) {mdata2d->vertex.buffer}, /* buffers */
+        (VkDeviceSize[]) {0}                   /* offsets */
     );
 
+    vkCmdBindIndexBuffer (cmd, mdata2d->index.buffer, 0, VK_INDEX_TYPE_UINT32);
+
     /* draw */
-    vkCmdDraw (
-        cmd,
-        6, /* vertex count */
-        1, /* instance count */
-        0, /* first vertex */
-        0  /* first instance */
-    );
+    vkCmdDrawIndexed (cmd, mdata2d->index_count, 1, 0, 0, 0);
 
     /* end render pass */
     vkCmdEndRenderPass (cmd);

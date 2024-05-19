@@ -35,7 +35,7 @@
 
 #include "Api/Common.h"
 #include "Api/Graphics.h"
-#include "Api/Shape2D.h"
+#include "Api/Mesh2D.h"
 #include "Api/GraphicsContext.h"
 
 #endif // ANVIE_CROSSGUI_PLUGIN_GRAPHICS_API_H

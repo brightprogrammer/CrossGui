@@ -44,13 +44,8 @@ typedef struct XuiGraphicsPlugin {
     XuiGraphicsContextDestroy context_destroy;
     XuiGraphicsContextResize  context_resize;
 
-    /* shape 2d methods */
-    XuiShapeCreate2D     shape_create_2d;
-    XuiShapeDestroy2D    shape_destroy_2d;
-    XuiShapeReset2D      shape_reset_2d;
-    XuiShapeReserve2D    shape_reserve_2d;
-    XuiShapeAddVertices2D  shape_add_vertices_2d;
-    XuiShapeIsComplete2D shape_is_complete_2d;
+    /* mesh 2d methods */
+    XuiMeshUpload2D mesh_upload_2d;
 
     /* drawing methods */
     XuiGraphicsDraw2D draw_2d;
