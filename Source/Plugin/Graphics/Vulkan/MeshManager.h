@@ -36,30 +36,81 @@
 #include <Anvie/Types.h>
 
 /* local inclueds */
+#include "Anvie/Common.h"
 #include "Device.h"
 
 /* fwd-declaration */
-typedef struct XuiMesh2D XuiMesh2D;
+typedef struct XuiMesh2D         XuiMesh2D;
+typedef struct XuiMeshInstance2D XuiMeshInstance2D;
 
 typedef struct MeshData2D {
     Uint32       type; /**< @b A unique ID assigned to each mesh by the user code. */
     DeviceBuffer vertex;
-    Size vertex_count;
+    Size         vertex_count;
     DeviceBuffer index;
-    Size index_count;
+    Size         index_count;
 } MeshData2D;
 
+/**
+ * @b A batch is made by grouping together all mesh instances that belong to
+ * a certain mesh type. The mesh manager then creates an array of these batches,
+ * corresponding to each mesh type.
+ * */
+typedef struct MeshInstanceBatch2D {
+    /**
+     * @b To what instance type does this batch belong to.
+     * */
+    Uint32 mesh_type;
+
+    /**
+     * @b Vector of mesh instances corresponding to this batch.
+     * */
+    struct {
+        Size               count;
+        Size               capacity;
+        XuiMeshInstance2D *data;
+    } instances;
+} MeshInstanceBatch2D;
+
+MeshInstanceBatch2D *mesh_instance_batch_init_2d (MeshInstanceBatch2D *mib, Uint32 type);
+MeshInstanceBatch2D *mesh_instance_batch_deinit_2d (MeshInstanceBatch2D *mib);
+MeshInstanceBatch2D *mesh_instance_batch_add_instance_2d (
+    MeshInstanceBatch2D *mib,
+    XuiMeshInstance2D   *mesh_instance
+);
+MeshInstanceBatch2D *mesh_instance_batch_2d_reset (MeshInstanceBatch2D *mib);
+
 typedef struct MeshManager {
+    /**
+     * @b Mesh data for each mesh type.
+     * Mesh data added to this vector stays as long as the application is
+     * running (plugin is in use and is kept loaded)
+     * */
     struct {
         Size        count;
         Size        capacity;
         MeshData2D *data;
     } mesh_data_2d;
+
+    /**
+     * @b Vector storing batches corresponding to each mesh type.
+     * Mesh instance data keeps getting added and removed quite frequently,
+     * based on how many times the user issues a gfx_reset, which consequently
+     * resets the contents of this vector.
+     * */
+    struct {
+        Size                 count;
+        Size                 capacity;
+        MeshInstanceBatch2D *data;
+    } batches_2d;
 } MeshManager;
 
-MeshManager *mesh_manager_init (MeshManager *mm);
-MeshManager *mesh_manager_deinit (MeshManager *mm);
-MeshManager *mesh_manager_upload_mesh_2d (MeshManager *mm, XuiMesh2D *mesh);
-MeshData2D  *mesh_manager_get_mesh_data_by_type (MeshManager *mm, Uint32 type);
+MeshManager         *mesh_manager_init (MeshManager *mm);
+MeshManager         *mesh_manager_deinit (MeshManager *mm);
+MeshManager         *mesh_manager_upload_mesh_2d (MeshManager *mm, XuiMesh2D *mesh);
+MeshData2D          *mesh_manager_get_mesh_data_by_type_2d (MeshManager *mm, Uint32 type);
+MeshInstanceBatch2D *mesh_manager_get_mesh_instance_batch_by_type_2d (MeshManager *mm, Uint32 type);
+MeshManager *mesh_manager_add_mesh_instance_2d (MeshManager *mm, XuiMeshInstance2D *mesh_instance);
+MeshManager *mesh_manager_reset_batches_2d (MeshManager *mm);
 
 #endif // ANVIE_SOURCE_CROSSGUI_PLUGIN_GRAPHICS_VULKAN_MESH_MANAGER_H

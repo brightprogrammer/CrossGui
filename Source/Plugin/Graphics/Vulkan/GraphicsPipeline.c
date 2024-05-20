@@ -30,12 +30,16 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * */
 
-/* crossgui plugin */
+#include <Anvie/Common.h>
+
+/* crossgui utils */
 #include <Anvie/CrossGui/Utils/Maths.h>
+
+/* crossgui-graphics-api */
+#include <Anvie/CrossGui/Plugin/Graphics/Api/Mesh2D.h>
 #include <vulkan/vulkan_core.h>
 
 /* local includes */
-#include "Anvie/Common.h"
 #include "GraphicsPipeline.h"
 #include "RenderPass.h"
 #include "Swapchain.h"
@@ -217,11 +221,34 @@ GraphicsPipeline *graphics_pipeline_init_default (
          * */
 
         /* describe how vertex data is sent to GPU */
-        VkVertexInputBindingDescription vertex_binding_desc =
-            {.binding = 0, .stride = sizeof (Vec2f), .inputRate = VK_VERTEX_INPUT_RATE_VERTEX};
+        VkVertexInputBindingDescription vertex_binding_descs[] = {
+            {  .binding = 0,.stride = sizeof (Vec2f),.inputRate = VK_VERTEX_INPUT_RATE_VERTEX              },
 
-        VkVertexInputAttributeDescription vertex_attribute_desc[] = {
-            {.location = 0, .binding = 0, .format = VK_FORMAT_R32G32_SFLOAT, .offset = 0}
+            {.binding   = 1,
+             .stride    = sizeof (XuiMeshInstance2D),
+             .inputRate = VK_VERTEX_INPUT_RATE_INSTANCE}
+        };
+
+        VkVertexInputAttributeDescription vertex_attribute_descs[] = {
+            /* mesh vertex position */
+            {.location = 0, .binding = 0, .format = VK_FORMAT_R32G32_SFLOAT, .offset = 0},
+
+            {.location = 1,
+             .binding  = 1,
+             .format   = VK_FORMAT_R32_UINT,
+             .offset   = offsetof (XuiMeshInstance2D, type)}, /* instance mesh type */
+            {.location = 2,
+             .binding  = 1,
+             .format   = VK_FORMAT_R32G32_SFLOAT,
+             .offset   = offsetof (XuiMeshInstance2D, scale)}, /* instance scale */
+            {.location = 3,
+             .binding  = 1,
+             .format   = VK_FORMAT_R32G32B32_SFLOAT,
+             .offset   = offsetof (XuiMeshInstance2D, position)}, /* instance position */
+            {.location = 4,
+             .binding  = 1,
+             .format   = VK_FORMAT_R32G32B32A32_SFLOAT,
+             .offset   = offsetof (XuiMeshInstance2D, color)}, /* instance color */
         };
 
         /* describe vertex input state */
@@ -229,10 +256,10 @@ GraphicsPipeline *graphics_pipeline_init_default (
             .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
             .pNext = Null,
             .flags = 0,
-            .vertexBindingDescriptionCount   = 1,
-            .pVertexBindingDescriptions      = &vertex_binding_desc,
-            .vertexAttributeDescriptionCount = ARRAY_SIZE (vertex_attribute_desc),
-            .pVertexAttributeDescriptions    = vertex_attribute_desc
+            .vertexBindingDescriptionCount   = ARRAY_SIZE (vertex_binding_descs),
+            .pVertexBindingDescriptions      = vertex_binding_descs,
+            .vertexAttributeDescriptionCount = ARRAY_SIZE (vertex_attribute_descs),
+            .pVertexAttributeDescriptions    = vertex_attribute_descs
         };
 
         /* how to assemble input vertex data */

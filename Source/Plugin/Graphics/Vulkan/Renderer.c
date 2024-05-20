@@ -36,6 +36,7 @@
 #include <Anvie/CrossGui/Plugin/Graphics/Api/Mesh2D.h>
 
 /* local includes */
+#include "Anvie/CrossGui/Plugin/Graphics/Api/Common.h"
 #include "Device.h"
 #include "GraphicsContext.h"
 #include "MeshManager.h"
@@ -75,7 +76,19 @@ static XuiRenderStatus end_frame (
 
 XuiRenderStatus
     gfx_draw_2d (XuiGraphicsContext *gctx, XwWindow *win, XuiMeshInstance2D *mesh_instance) {
-    RETURN_VALUE_IF (!gctx || !win, XUI_RENDER_STATUS_ERR, ERR_INVALID_ARGUMENTS);
+    RETURN_VALUE_IF (!gctx || !win || !mesh_instance, XUI_RENDER_STATUS_ERR, ERR_INVALID_ARGUMENTS);
+
+    RETURN_VALUE_IF (
+        !mesh_manager_add_mesh_instance_2d (&vk.mesh_manager, mesh_instance),
+        XUI_RENDER_STATUS_ERR,
+        "Failed to add mesh instance for drawing"
+    );
+
+    return XUI_RENDER_STATUS_OK;
+}
+
+XuiRenderStatus gfx_display (XuiGraphicsContext *gctx, XwWindow *win) {
+    RETURN_VALUE_IF (!gctx, XUI_RENDER_STATUS_ERR, ERR_INVALID_ARGUMENTS);
 
     RenderPass       *render_pass      = &gctx->default_render_pass;
     Swapchain        *swapchain        = &gctx->swapchain;
@@ -132,17 +145,12 @@ XuiRenderStatus
     /* begin render pass */
     {
         VkRenderPassBeginInfo render_pass_begin_info = {
-            .sType       = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-            .pNext       = Null,
-            .renderPass  = render_pass->render_pass,
-            .renderArea  = {.offset = {.x = 0, .y = 0}, .extent = swapchain->image_extent},
-            .framebuffer = info.framebuffer,
-
-            /* we're able to pass depth-stencil clear value only and at first index because of
-             * how renderpass attachments and framebuffer attachments are described during renderpass
-             * creation */
-            .clearValueCount = 1,
-            .pClearValues    = (VkClearValue[]) {{.depthStencil = {.depth = 0.f, .stencil = 0.f}}}
+            .sType           = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+            .pNext           = Null,
+            .renderPass      = render_pass->render_pass,
+            .renderArea      = {.offset = {.x = 0, .y = 0}, .extent = swapchain->image_extent},
+            .framebuffer     = info.framebuffer,
+            .clearValueCount = 0
         };
 
         vkCmdBeginRenderPass (cmd, &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
@@ -150,36 +158,51 @@ XuiRenderStatus
 
     vkCmdBindPipeline (cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, default_pipeline->pipeline);
 
-    /* update uniform buffer with GUI data */
-    device_buffer_memcpy (&gctx->ui_data, mesh_instance, sizeof (XuiMeshInstance2D));
 
-    /* bind uniform buffers */
-    vkCmdBindDescriptorSets (
-        cmd,
-        VK_PIPELINE_BIND_POINT_GRAPHICS,   /* bind point */
-        default_pipeline->pipeline_layout, /* pipeline layout */
-        0,                                 /* first set */
-        1,                                 /* set count */
-        &default_pipeline->descriptor_set, /* sets */
-        0,                                 /* dynamic offset counts */
-        0                                  /* dynamic offsets */
-    );
+    /* issue a draw call for each batch just once */
+    for (Size s = 0; s < vk.mesh_manager.batches_2d.count; s++) {
+        /* get batch */
+        MeshInstanceBatch2D *batch = vk.mesh_manager.batches_2d.data + s;
 
-    MeshData2D *mdata2d = mesh_manager_get_mesh_data_by_type (&vk.mesh_manager, mesh_instance->type);
+        /* skip if batch as no instances */
+        if (!batch->instances.count) {
+            continue;
+        }
 
-    /* bind shape data */
-    vkCmdBindVertexBuffers (
-        cmd,
-        0,                                     /* first binding */
-        1,                                     /* binding count */
-        (VkBuffer[]) {mdata2d->vertex.buffer}, /* buffers */
-        (VkDeviceSize[]) {0}                   /* offsets */
-    );
+        /* resize if required */
+        Size batch_size_in_bytes = sizeof (XuiMeshInstance2D) * batch->instances.count;
+        if (gctx->batch_data.size < batch_size_in_bytes) {
+            RETURN_VALUE_IF (
+                !device_buffer_resize (&gctx->batch_data, batch_size_in_bytes),
+                XUI_RENDER_STATUS_ERR,
+                "Failed to resize UBO to send batch data\n"
+            );
+        }
 
-    vkCmdBindIndexBuffer (cmd, mdata2d->index.buffer, 0, VK_INDEX_TYPE_UINT32);
+        /* send batch data as vertex data but per instance */
+        device_buffer_memcpy (&gctx->batch_data, batch->instances.data, batch_size_in_bytes);
 
-    /* draw */
-    vkCmdDrawIndexed (cmd, mdata2d->index_count, 1, 0, 0, 0);
+        /* get mesh data */
+        MeshData2D *mesh =
+            mesh_manager_get_mesh_data_by_type_2d (&vk.mesh_manager, batch->mesh_type);
+
+        PRINT_ERR ("Mesh has indices count = %zu\n", mesh->vertex_count);
+
+        /* bind shape data */
+        vkCmdBindVertexBuffers (
+            cmd,
+            0,                                                           /* first binding */
+            2,                                                           /* binding count */
+            (VkBuffer[]) {mesh->vertex.buffer, gctx->batch_data.buffer}, /* buffers */
+            (VkDeviceSize[]) {0, 0}                                      /* offsets */
+        );
+
+        vkCmdBindIndexBuffer (cmd, mesh->index.buffer, 0, VK_INDEX_TYPE_UINT32);
+
+        /* draw */
+        vkCmdDrawIndexed (cmd, mesh->index_count, batch->instances.count, 0, 0, 0);
+    }
+
 
     /* end render pass */
     vkCmdEndRenderPass (cmd);
@@ -262,7 +285,14 @@ XuiRenderStatus gfx_clear (XuiGraphicsContext *gctx, XwWindow *win) {
 
     /* clear all images in swapchain */
     for (Size s = 0; s < swapchain->image_count; s++) {
-        swapchain_clear_image (swapchain, s, cmd, (VkClearColorValue) {0});
+        swapchain_clear_image (
+            swapchain,
+            s,
+            cmd,
+            (VkClearColorValue) {
+                .float32 = {0, 0, 0, 1}
+        }
+        );
     }
 
     device_image_clear (

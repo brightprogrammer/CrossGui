@@ -56,10 +56,10 @@ typedef struct XuiMesh2D {
  * instance : mesh :: muscle : skeleton. 
  * */
 typedef struct XuiMeshInstance2D {
-    Uint32 type;     /**< @b Selected mesh. */
-    Vec2f  scale;    /**< @b Scale factor of mesh instance. */
-    Vec3f  position; /**< @b Position of mesh instance. */
-    Vec4f  color;    /**< @b Color of mesh instance. */
+    Uint32  type;     /**< @b Selected mesh. */
+    Vec2f   scale;    /**< @b Scale factor of mesh instance. */
+    Vec3f   position; /**< @b Position of mesh instance. */
+    Vec4f   color;    /**< @b Color of mesh instance. */
 } XuiMeshInstance2D;
 
 typedef Bool (*XuiMeshUpload2D) (XuiMesh2D *mesh);

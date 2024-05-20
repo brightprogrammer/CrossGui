@@ -40,6 +40,7 @@
 
 /* local includes */
 #include "GraphicsContext.h"
+#include "MeshManager.h"
 #include "RenderPass.h"
 #include "Renderer.h"
 #include "Vulkan.h"
@@ -76,24 +77,24 @@ XuiGraphicsContext *graphics_context_create (XwWindow *xwin) {
     {
         GOTO_HANDLER_IF (
             !device_buffer_init (
-                &gctx->ui_data,
-                VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-                sizeof (XuiMeshInstance2D),
+                &gctx->batch_data,
+                VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                sizeof (XuiMeshInstance2D) * 4096,
                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
                 vk.device.graphics_queue.family_index
-            ) || !gctx->ui_data.size,
+            ) || !gctx->batch_data.size,
             GCTX_FAILED,
             "Failed to create ui data uniform buffer for graphics context\n"
         );
 
-        GOTO_HANDLER_IF (
-            !graphics_pipeline_write_to_descriptor_set (
-                &gctx->default_render_pass.pipelines.default_graphics,
-                &gctx->ui_data
-            ),
-            GCTX_FAILED,
-            "Failed to write UBO info to descriptor set\n"
-        );
+        // GOTO_HANDLER_IF (
+        //     !graphics_pipeline_write_to_descriptor_set (
+        //         &gctx->default_render_pass.pipelines.default_graphics,
+        //         &gctx->batch_data
+        //     ),
+        //     GCTX_FAILED,
+        //     "Failed to write UBO info to descriptor set\n"
+        // );
     }
 
     return gctx;
@@ -111,8 +112,8 @@ GCTX_FAILED:
 void graphics_context_destroy (XuiGraphicsContext *gctx) {
     RETURN_IF (!gctx, ERR_INVALID_ARGUMENTS);
 
-    if (gctx->ui_data.buffer) {
-        device_buffer_deinit (&gctx->ui_data);
+    if (gctx->batch_data.buffer) {
+        device_buffer_deinit (&gctx->batch_data);
     }
 
     if (gctx->default_render_pass.render_pass) {

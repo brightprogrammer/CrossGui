@@ -59,6 +59,11 @@ typedef XuiRenderStatus (*XuiGraphicsDraw2D) (
     XuiMeshInstance2D  *mesh_instance
 );
 
+typedef XuiRenderStatus (*XuiGraphicsDisplay) (
+    XuiGraphicsContext* graphics_context,
+    XwWindow* xwin
+);
+
 /**
  * @b Clear images of swapchain in given @x XuiGraphicsContext object.
  *

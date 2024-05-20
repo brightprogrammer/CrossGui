@@ -35,9 +35,13 @@
 
 #include <Anvie/Types.h>
 
-#define ALIGN(N) __attribute__ ((aligned (N)))
+#if 0
+#    define __MATH_TYPE_ALIGN__(N) __attribute__ ((aligned (N)))
+#else
+#    define __MATH_TYPE_ALIGN__(N)
+#endif
 
-typedef union ALIGN (8) Vec2f {
+typedef union __MATH_TYPE_ALIGN__ (8) Vec2f {
 #define GEN_VEC2F(nx, ny)                                                                          \
     struct {                                                                                       \
         Float32 nx, ny;                                                                            \
@@ -59,7 +63,7 @@ Vec2f  *vec2f_mul_f32 (Vec2f *res, Vec2f *vec, Float32 scalar);
 Float32 vec2f_dot (Vec2f *vec1, Vec2f *vec2);
 Float32 vec2f_norm (Vec2f *vec);
 
-typedef union ALIGN (16) Vec3f {
+typedef union __MATH_TYPE_ALIGN__ (16) Vec3f {
 #define GEN_VEC3F(nx, ny, nz)                                                                      \
     struct {                                                                                       \
         Float32 nx, ny, nz;                                                                        \
@@ -91,7 +95,7 @@ Vec3f  *vec3f_mul_f32 (Vec3f *res, Vec3f *vec, Float32 scalar);
 Float32 vec3f_dot (Vec3f *vec1, Vec3f *vec2);
 Float32 vec3f_norm (Vec3f *vec);
 
-typedef union ALIGN (16) Vec4f {
+typedef union __MATH_TYPE_ALIGN__ (16) Vec4f {
 #define GEN_VEC4F(nx, ny, nz, nw)                                                                  \
     struct {                                                                                       \
         Float32 nx, ny, nz, nw;                                                                    \
@@ -123,7 +127,7 @@ typedef union ALIGN (16) Vec4f {
     GEN_VEC4F (x, y, z, w);
     GEN_VEC4F (r, g, b, a);
 
-    Float32 data[3];
+    Float32 data[4];
 
 #undef GEN_VEC4F
 } Vec4f;
@@ -176,5 +180,7 @@ Mat4f  *mat4f_invert (Mat4f *res, Mat4f *mat);
 Vec4f  *mat4f_mul_vec (Vec4f *res, Mat4f *mat, Vec4f *vec);
 Mat4f  *mat4f_mul_f32 (Mat4f *res, Mat4f *mat, Float32 scale);
 Float32 mat4f_det (Mat4f *mat);
+
+#undef __MATH_TYPE_ALIGN__
 
 #endif // ANVIE_CROSSGUI_MATHS_H

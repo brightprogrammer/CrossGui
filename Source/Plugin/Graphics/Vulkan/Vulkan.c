@@ -234,6 +234,7 @@ static XuiGraphicsPlugin vulkan_graphics_plugin_data = {
 
     /* drawing methods */
     .draw_2d = gfx_draw_2d,
+    .display = gfx_display,
     .clear   = gfx_clear
 };
 

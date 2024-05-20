@@ -43,12 +43,10 @@ typedef struct XuiGraphicsContext {
     RenderPass   default_render_pass;
 
     /**
-     * @b UI object placement and size data is passed through uniform buffers.
-     *
-     * This stores the uniform buffer passed to the shaders.
-     * Since ui_data is different for each window, this is the best place for it.
+     * @b Device buffer storing mesh instance data to be passed to GPU
+     * just before a draw call.
      * */
-    DeviceBuffer ui_data;
+    DeviceBuffer batch_data;
 } XuiGraphicsContext;
 
 XuiGraphicsContext *graphics_context_create (XwWindow *xwin);

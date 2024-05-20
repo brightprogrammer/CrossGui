@@ -49,6 +49,7 @@ typedef struct XuiGraphicsPlugin {
 
     /* drawing methods */
     XuiGraphicsDraw2D draw_2d;
+    XuiGraphicsDisplay display;
     XuiGraphicsClear  clear;
 } XuiGraphicsPlugin;
 
