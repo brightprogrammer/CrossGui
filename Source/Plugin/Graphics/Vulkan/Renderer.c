@@ -32,8 +32,14 @@
 
 #include <Anvie/Common.h>
 
+/* crossgui-utils */
+#include <Anvie/CrossGui/Utils/Vector.h>
+
 /* crossgui-graphics-api */
 #include <Anvie/CrossGui/Plugin/Graphics/Api/Mesh2D.h>
+
+/* libc */
+#include <memory.h>
 
 /* local includes */
 #include "Device.h"
@@ -67,16 +73,249 @@ static XuiRenderStatus end_frame (
     BeginEndInfo *end_info
 );
 
+NEW_VECTOR_TYPE (MeshInstanceBatch2D, mesh_instance_batch_2d);
+NEW_VECTOR_TYPE (XuiMeshInstance2D, mesh_instance_2d);
+
+/**************************************************************************************************/
+/***************************** MESH INSTANCE BATCH 2D PUBLIC METHODS ******************************/
+/**************************************************************************************************/
+
+MeshInstanceBatch2D *mesh_instance_batch_init_2d (MeshInstanceBatch2D *batch, Uint32 type) {
+    RETURN_VALUE_IF (!batch, Null, ERR_INVALID_ARGUMENTS);
+
+    /* create vector */
+    RETURN_VALUE_IF (
+        !(batch->instances.data = mesh_instance_2d_vector_create (16, &batch->instances.capacity)),
+        Null,
+        "Failed to create vector to store batch of mesh instances 2D.\n"
+    );
+
+    RETURN_VALUE_IF (
+        !device_buffer_init (
+            &batch->device_data,
+            VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+            sizeof (XuiMeshInstance2D) * 1024,
+            VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+            vk.device.graphics_queue.family_index
+        ),
+        Null,
+        "Failed to create device buffer\n"
+    );
+
+    /* set type */
+    batch->mesh_type = type;
+
+    return batch;
+}
+
+MeshInstanceBatch2D *mesh_instance_batch_deinit_2d (MeshInstanceBatch2D *batch) {
+    RETURN_VALUE_IF (!batch, Null, ERR_INVALID_ARGUMENTS);
+
+    if (batch->instances.data) {
+        mesh_instance_2d_vector_destroy (batch->instances.data);
+    }
+
+    if (batch->device_data.buffer) {
+        device_buffer_deinit (&batch->device_data);
+    }
+
+    memset (batch, 0, sizeof (MeshInstanceBatch2D));
+
+    return batch;
+}
+
+MeshInstanceBatch2D *mesh_instance_batch_add_instance_2d (
+    MeshInstanceBatch2D *batch,
+    XuiMeshInstance2D   *mesh_instance
+) {
+    RETURN_VALUE_IF (!batch || !mesh_instance, Null, ERR_INVALID_ARGUMENTS);
+
+    /* resize if required */
+    if (batch->instances.count >= batch->instances.capacity) {
+        Size               newcap = 0;
+        XuiMeshInstance2D *tmpbuf = Null;
+        RETURN_VALUE_IF (
+            !(tmpbuf = mesh_instance_2d_vector_resize (
+                  batch->instances.data,
+                  batch->instances.count,     /* from count */
+                  batch->instances.count + 1, /* to count */
+                  batch->instances.capacity,  /* from cap */
+                  &newcap                     /* to new cap (automatically set by the function) */
+              )),
+            Null,
+            "Failed to resize vector to store more mesh instance data in corresponding batch\n"
+        );
+
+        batch->instances.data     = tmpbuf;
+        batch->instances.capacity = newcap;
+    }
+
+    batch->instances.data[batch->instances.count++] = *mesh_instance;
+
+    return batch;
+}
+
+MeshInstanceBatch2D *mesh_instance_batch_reset_2d (MeshInstanceBatch2D *batch) {
+    RETURN_VALUE_IF (!batch, Null, ERR_INVALID_ARGUMENTS);
+
+    /* for now and probably forever, reset just means this 
+     * until unless we enter some crazy memory optimization and we cap memory of
+     * vectors after a reset */
+    batch->instances.count = 0;
+
+    return batch;
+}
+
+MeshInstanceBatch2D *mesh_instance_batch_upload_to_gpu_2d (MeshInstanceBatch2D *batch) {
+    RETURN_VALUE_IF (!batch, Null, ERR_INVALID_ARGUMENTS);
+
+    /* resize if required */
+    Size batch_size_in_bytes = sizeof (XuiMeshInstance2D) * batch->instances.count;
+    if (batch->device_data.size < batch_size_in_bytes) {
+        RETURN_VALUE_IF (
+            device_buffer_resize (&batch->device_data, batch_size_in_bytes),
+            Null,
+            "Failed to resize batch data device buffer\n"
+        );
+    }
+
+    /* upload data */
+    RETURN_VALUE_IF (
+        !device_buffer_memcpy (&batch->device_data, batch->instances.data, batch_size_in_bytes),
+        Null,
+        "Failed to upload batch data to GPU"
+    );
+
+    return batch;
+}
+
 /**************************************************************************************************/
 /*********************************** PUBLIC METHOD DEFINITIONS ************************************/
 /**************************************************************************************************/
 
-XuiRenderStatus
-    gfx_draw_2d (XuiGraphicsContext *gctx, XwWindow *win, XuiMeshInstance2D *mesh_instance) {
-    RETURN_VALUE_IF (!gctx || !win || !mesh_instance, XUI_RENDER_STATUS_ERR, ERR_INVALID_ARGUMENTS);
+BatchRenderer *batch_renderer_init (BatchRenderer *renderer, Swapchain *swapchain) {
+    RETURN_VALUE_IF (!renderer || !swapchain, Null, ERR_INVALID_ARGUMENTS);
 
     RETURN_VALUE_IF (
-        !mesh_manager_add_mesh_instance_2d (&vk.mesh_manager, mesh_instance),
+        !render_pass_init_default (&renderer->default_render_pass, swapchain),
+        Null,
+        "Failed to create default render pass for Batch Renderer\n"
+    );
+
+    RETURN_VALUE_IF (
+        !(renderer->batches_2d.data =
+              mesh_instance_batch_2d_vector_create (128, &renderer->batches_2d.capacity)),
+        Null,
+        "Failed to create vector to store batches"
+    );
+
+    return renderer;
+}
+
+BatchRenderer *batch_renderer_deinit (BatchRenderer *renderer) {
+    RETURN_VALUE_IF (!renderer, Null, ERR_INVALID_ARGUMENTS);
+
+    if (renderer->batches_2d.data) {
+        /* since in a batch reset we don't free the memory, it's possible
+         * that some batch exceed the current count boundary is left allocated,
+         * we need to free those as well, so we instead search the complete array of left out memory */
+        for (Size s = 0; s < renderer->batches_2d.capacity; s++) {
+            mesh_instance_batch_deinit_2d (renderer->batches_2d.data + s);
+        }
+
+        mesh_instance_batch_2d_vector_destroy (renderer->batches_2d.data);
+    }
+
+    render_pass_deinit (&renderer->default_render_pass);
+
+    return renderer;
+}
+
+MeshInstanceBatch2D *
+    batch_renderer_get_mesh_instance_batch_by_type_2d (BatchRenderer *renderer, Uint32 type) {
+    RETURN_VALUE_IF (!renderer, Null, ERR_INVALID_ARGUMENTS);
+
+    for (Size s = 0; s < renderer->batches_2d.count; s++) {
+        if (renderer->batches_2d.data[s].mesh_type == type) {
+            return renderer->batches_2d.data + s;
+        }
+    }
+
+    return Null;
+}
+BatchRenderer *batch_renderer_add_mesh_instance_2d (
+    BatchRenderer     *renderer,
+    XuiMeshInstance2D *mesh_instance
+) {
+    RETURN_VALUE_IF (!renderer || !mesh_instance, Null, ERR_INVALID_ARGUMENTS);
+
+    /* find batch */
+    MeshInstanceBatch2D *batch =
+        batch_renderer_get_mesh_instance_batch_by_type_2d (renderer, mesh_instance->type);
+
+    /* create batch if not already created */
+    if (!batch) {
+        /* check if mesh type already exists */
+        RETURN_VALUE_IF (
+            !mesh_manager_get_mesh_data_by_type_2d (&vk.mesh_manager, mesh_instance->type),
+            Null,
+            "Mesh instance given with a non-existent mesh type. Cannot create batch\n"
+        );
+
+        /* resize if required */
+        if (renderer->batches_2d.count >= renderer->batches_2d.capacity) {
+            Size                 newcap = 0;
+            MeshInstanceBatch2D *tmpbuf = Null;
+            RETURN_VALUE_IF (
+                !(tmpbuf = mesh_instance_batch_2d_vector_resize (
+                      renderer->batches_2d.data,
+                      renderer->batches_2d.count,     /* from count */
+                      renderer->batches_2d.count + 1, /* to count */
+                      renderer->batches_2d.capacity,  /* from cap */
+                      &newcap /* to new cap (automatically set by the function) */
+                  )),
+                Null,
+                "Failed to resize vector to batches\n"
+            );
+
+            renderer->batches_2d.data     = tmpbuf;
+            renderer->batches_2d.capacity = newcap;
+        }
+
+        batch = renderer->batches_2d.data + renderer->batches_2d.count++;
+        mesh_instance_batch_init_2d (batch, mesh_instance->type);
+    }
+
+    /* insert mesh instance to corresponding batch */
+    mesh_instance_batch_add_instance_2d (batch, mesh_instance);
+
+    return renderer;
+}
+BatchRenderer *batch_renderer_reset_batches_2d (BatchRenderer *renderer) {
+    RETURN_VALUE_IF (!renderer, Null, ERR_INVALID_ARGUMENTS);
+
+    for (Size s = 0; s < renderer->batches_2d.count; s++) {
+        mesh_instance_batch_reset_2d (renderer->batches_2d.data + s);
+    }
+
+    return renderer;
+}
+
+BatchRenderer *batch_renderer_upload_batches_to_gpu_2d (BatchRenderer *renderer) {
+    RETURN_VALUE_IF (!renderer, Null, ERR_INVALID_ARGUMENTS);
+
+    for (Size s = 0; s < renderer->batches_2d.count; s++) {
+        mesh_instance_batch_upload_to_gpu_2d (renderer->batches_2d.data + s);
+    }
+
+    return renderer;
+}
+
+XuiRenderStatus batch_renderer_draw_2d (BatchRenderer *renderer, XuiMeshInstance2D *mesh_instance) {
+    RETURN_VALUE_IF (!renderer || !mesh_instance, XUI_RENDER_STATUS_ERR, ERR_INVALID_ARGUMENTS);
+
+    RETURN_VALUE_IF (
+        !batch_renderer_add_mesh_instance_2d (renderer, mesh_instance),
         XUI_RENDER_STATUS_ERR,
         "Failed to add mesh instance for drawing"
     );
@@ -84,11 +323,11 @@ XuiRenderStatus
     return XUI_RENDER_STATUS_OK;
 }
 
-XuiRenderStatus gfx_display (XuiGraphicsContext *gctx, XwWindow *win) {
-    RETURN_VALUE_IF (!gctx, XUI_RENDER_STATUS_ERR, ERR_INVALID_ARGUMENTS);
+XuiRenderStatus
+    batch_renderer_display (BatchRenderer *renderer, Swapchain *swapchain, XwWindow *win) {
+    RETURN_VALUE_IF (!renderer || !swapchain || !win, XUI_RENDER_STATUS_ERR, ERR_INVALID_ARGUMENTS);
 
-    RenderPass       *render_pass      = &gctx->default_render_pass;
-    Swapchain        *swapchain        = &gctx->swapchain;
+    RenderPass       *render_pass      = &renderer->default_render_pass;
     GraphicsPipeline *default_pipeline = &render_pass->pipelines.default_graphics;
 
     BeginEndInfo info = {0};
@@ -155,12 +394,12 @@ XuiRenderStatus gfx_display (XuiGraphicsContext *gctx, XwWindow *win) {
 
     vkCmdBindPipeline (cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, default_pipeline->pipeline);
 
-    mesh_manager_upload_batches_to_gpu_2d (&vk.mesh_manager);
+    batch_renderer_upload_batches_to_gpu_2d (renderer);
 
     /* issue a draw call for each batch just once */
-    for (Size s = 0; s < vk.mesh_manager.batches_2d.count; s++) {
+    for (Size s = 0; s < renderer->batches_2d.count; s++) {
         /* get batch */
-        MeshInstanceBatch2D *batch = vk.mesh_manager.batches_2d.data + s;
+        MeshInstanceBatch2D *batch = renderer->batches_2d.data + s;
 
         /* skip if batch as no instances */
         if (!batch->instances.count) {
@@ -202,11 +441,11 @@ XuiRenderStatus gfx_display (XuiGraphicsContext *gctx, XwWindow *win) {
  * @return @c XUI_RENDER_STATUS_OK on success.
  * @return @c XUI_RENDER_STATUS_ERR otherwise.
  * */
-XuiRenderStatus gfx_clear (XuiGraphicsContext *gctx, XwWindow *win) {
-    RETURN_VALUE_IF (!gctx || !win, XUI_RENDER_STATUS_ERR, ERR_INVALID_ARGUMENTS);
+XuiRenderStatus
+    batch_renderer_clear (BatchRenderer *renderer, Swapchain *swapchain, XwWindow *win) {
+    RETURN_VALUE_IF (!renderer || !swapchain || !win, XUI_RENDER_STATUS_ERR, ERR_INVALID_ARGUMENTS);
 
-    RenderPass *render_pass = &gctx->default_render_pass;
-    Swapchain  *swapchain   = &gctx->swapchain;
+    RenderPass *render_pass = &renderer->default_render_pass;
     FrameData  *frame_data  = render_pass->frame_data + (render_pass->frame_index % FRAME_LIMIT);
 
     /* wait for prending operations */
@@ -328,6 +567,19 @@ XuiRenderStatus gfx_clear (XuiGraphicsContext *gctx, XwWindow *win) {
         }
     }
     return XUI_RENDER_STATUS_OK;
+}
+
+XuiRenderStatus gfx_draw_2d (XuiGraphicsContext *gctx, XuiMeshInstance2D *mesh_instance) {
+    RETURN_VALUE_IF (!gctx || !mesh_instance, XUI_RENDER_STATUS_ERR, ERR_INVALID_ARGUMENTS);
+    return batch_renderer_draw_2d (&gctx->batch_renderer, mesh_instance);
+}
+XuiRenderStatus gfx_display (XuiGraphicsContext *gctx, XwWindow *win) {
+    RETURN_VALUE_IF (!gctx || !win, XUI_RENDER_STATUS_ERR, ERR_INVALID_ARGUMENTS);
+    return batch_renderer_display (&gctx->batch_renderer, &gctx->swapchain, win);
+}
+XuiRenderStatus gfx_clear (XuiGraphicsContext *gctx, XwWindow *win) {
+    RETURN_VALUE_IF (!gctx || !win, XUI_RENDER_STATUS_ERR, ERR_INVALID_ARGUMENTS);
+    return batch_renderer_clear (&gctx->batch_renderer, &gctx->swapchain, win);
 }
 
 

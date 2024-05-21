@@ -55,13 +55,12 @@ typedef struct XuiMeshInstance2D  XuiMeshInstance2D;
  * */
 typedef XuiRenderStatus (*XuiGraphicsDraw2D) (
     XuiGraphicsContext *graphics_context,
-    XwWindow           *xwin,
     XuiMeshInstance2D  *mesh_instance
 );
 
 typedef XuiRenderStatus (*XuiGraphicsDisplay) (
-    XuiGraphicsContext* graphics_context,
-    XwWindow* xwin
+    XuiGraphicsContext *graphics_context,
+    XwWindow           *xwin
 );
 
 /**

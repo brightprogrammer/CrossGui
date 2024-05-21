@@ -51,38 +51,6 @@ typedef struct MeshData2D {
     Size         index_count;
 } MeshData2D;
 
-/**
- * @b A batch is made by grouping together all mesh instances that belong to
- * a certain mesh type. The mesh manager then creates an array of these batches,
- * corresponding to each mesh type.
- * */
-typedef struct MeshInstanceBatch2D {
-    /**
-     * @b To what instance type does this batch belong to.
-     * */
-    Uint32 mesh_type;
-
-    /**
-     * @b Vector of mesh instances corresponding to this batch.
-     * */
-    struct {
-        Size               count;
-        Size               capacity;
-        XuiMeshInstance2D *data;
-    } instances;
-
-    DeviceBuffer device_data;
-} MeshInstanceBatch2D;
-
-MeshInstanceBatch2D *mesh_instance_batch_init_2d (MeshInstanceBatch2D *batch, Uint32 type);
-MeshInstanceBatch2D *mesh_instance_batch_deinit_2d (MeshInstanceBatch2D *batch);
-MeshInstanceBatch2D *mesh_instance_batch_add_instance_2d (
-    MeshInstanceBatch2D *batch,
-    XuiMeshInstance2D   *mesh_instance
-);
-MeshInstanceBatch2D *mesh_instance_batch_reset_2d (MeshInstanceBatch2D *batch);
-MeshInstanceBatch2D *mesh_instance_batch_upload_to_gpu_2d (MeshInstanceBatch2D *batch);
-
 typedef struct MeshManager {
     /**
      * @b Mesh data for each mesh type.
@@ -94,27 +62,11 @@ typedef struct MeshManager {
         Size        capacity;
         MeshData2D *data;
     } mesh_data_2d;
-
-    /**
-     * @b Vector storing batches corresponding to each mesh type.
-     * Mesh instance data keeps getting added and removed quite frequently,
-     * based on how many times the user issues a gfx_reset, which consequently
-     * resets the contents of this vector.
-     * */
-    struct {
-        Size                 count;
-        Size                 capacity;
-        MeshInstanceBatch2D *data;
-    } batches_2d;
 } MeshManager;
 
 MeshManager         *mesh_manager_init (MeshManager *mm);
 MeshManager         *mesh_manager_deinit (MeshManager *mm);
 MeshManager         *mesh_manager_upload_mesh_2d (MeshManager *mm, XuiMesh2D *mesh);
 MeshData2D          *mesh_manager_get_mesh_data_by_type_2d (MeshManager *mm, Uint32 type);
-MeshInstanceBatch2D *mesh_manager_get_mesh_instance_batch_by_type_2d (MeshManager *mm, Uint32 type);
-MeshManager *mesh_manager_add_mesh_instance_2d (MeshManager *mm, XuiMeshInstance2D *mesh_instance);
-MeshManager *mesh_manager_reset_batches_2d (MeshManager *mm);
-MeshManager *mesh_manager_upload_batches_to_gpu_2d(MeshManager* mm);
 
 #endif // ANVIE_SOURCE_CROSSGUI_PLUGIN_GRAPHICS_VULKAN_MESH_MANAGER_H

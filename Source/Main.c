@@ -19,60 +19,110 @@ typedef enum MeshType {
 
 void draw_ui (XuiGraphicsPlugin *gplug, XuiGraphicsContext *gctx, XwWindow *xwin) {
     RETURN_IF (!gplug || !gctx || !xwin, ERR_INVALID_ARGUMENTS);
-
     if (!gplug->draw_2d (
             gctx,
-            xwin,
-            &(XuiMeshInstance2D) {
-                .type     = MESH_TYPE_TRIANGLE1,
-                .position = {.x = -0.2, .y = 0.8, .z = 0.f},
-                .scale    = {.x = 0.1, .y = 0.05},
-                .color    = {.r = 1, .g = 1, .b = 1, .a = 1},
-    }
-        )) {
-        PRINT_ERR ("Failed\n");
-        return;
-    }
-
-    if (!gplug->draw_2d (
-            gctx,
-            xwin,
-            &(XuiMeshInstance2D) {
-                .type     = MESH_TYPE_TRIANGLE1,
-                .position = {.x = 0.8, .y = 0.8, .z = 0.f},
-                .scale    = {.x = 0.1, .y = 0.5},
-                .color    = {.r = 0, .g = 1, .b = 1, .a = 1},
-    }
-        )) {
-        PRINT_ERR ("Failed\n");
-        return;
-    }
-
-    if (!gplug->draw_2d (
-            gctx,
-            xwin,
             &(XuiMeshInstance2D) {
                 .type     = MESH_TYPE_RECTANGLE,
-                .position = {.x = 0.8, .y = -0.8, .z = 0.f},
-                .scale    = {.x = 0.2, .y = 0.1},
-                .color    = {.r = 1, .g = 0, .b = 1, .a = 1},
+                .position = {.x = 0, .y = 0, .z = 1.f},
+                .scale    = {.x = 1, .y = 1},
+                .color    = {.r = 0.9, .g = 0.9, .b = 0.8, .a = 1},
     }
         )) {
         return;
     }
 
+    /* left panel */
     if (!gplug->draw_2d (
             gctx,
-            xwin,
             &(XuiMeshInstance2D) {
                 .type     = MESH_TYPE_RECTANGLE,
-                .position = {.x = -0.8, .y = -0.2, .z = 0.f},
-                .scale    = {.x = 0.1, .y = 0.05},
-                .color    = {.r = 1, .g = 1, .b = 0, .a = 1},
+                .position = {.x = -0.5 - 0.17, .y = 0.0, .z = 0.9f},
+                .scale    = {.x = 0.3, .y = 0.95},
+                .color    = {.r = 0.5, .g = 0.5, .b = 0.4, .a = 1},
     }
         )) {
         return;
     }
+
+    /* right panel */
+    if (!gplug->draw_2d (
+            gctx,
+            &(XuiMeshInstance2D) {
+                .type     = MESH_TYPE_RECTANGLE,
+                .position = {.x = 0.32, .y = 0.0, .z = 0.9f},
+                .scale    = {.x = 0.65, .y = 0.95},
+                .color    = {.r = 0.5, .g = 0.5, .b = 0.4, .a = 1},
+    }
+        )) {
+        return;
+    }
+
+    /* right top panel */
+    if (!gplug->draw_2d (
+            gctx,
+            &(XuiMeshInstance2D) {
+                .type     = MESH_TYPE_RECTANGLE,
+                .position = {.x = 0.2, .y = 0.62f, .z = 0.5f},
+                .scale    = {.x = 0.5, .y = 0.3},
+                .color    = {.r = 0.3, .g = 0.3, .b = 0.2, .a = 1},
+    }
+        )) {
+        return;
+    }
+
+    /* right bottom panel */
+    if (!gplug->draw_2d (
+            gctx,
+            &(XuiMeshInstance2D) {
+                .type     = MESH_TYPE_RECTANGLE,
+                .position = {.x = 0.2, .y = -0.32, .z = 0.5f},
+                .scale    = {.x = 0.5, .y = 0.60},
+                .color    = {.r = 0.3, .g = 0.3, .b = 0.2, .a = 1},
+    }
+        )) {
+        return;
+    }
+
+    /* right right panel */
+    if (!gplug->draw_2d (
+            gctx,
+            &(XuiMeshInstance2D) {
+                .type     = MESH_TYPE_RECTANGLE,
+                .position = {.x = 0.83, .y = 0.0, .z = 0.5f},
+                .scale    = {.x = 0.12, .y = 0.92},
+                .color    = {.r = 0.3, .g = 0.3, .b = 0.2, .a = 1},
+    }
+        )) {
+        return;
+    }
+
+    // /* vertical line */
+    // if (!gplug->draw_2d (
+    //         gctx,
+    //         xwin,
+    //         &(XuiMeshInstance2D) {
+    //             .type     = MESH_TYPE_RECTANGLE,
+    //             .position = {.x = 0.0, .y = 0, .z = 0.f},
+    //             .scale    = {.x = 0.005, .y = 1},
+    //             .color    = {.r = 0.2, .g = 0.2, .b = 0.2, .a = 1},
+    // }
+    //     )) {
+    //     return;
+    // }
+    //
+    // /* horizontal line */
+    // if (!gplug->draw_2d (
+    //         gctx,
+    //         xwin,
+    //         &(XuiMeshInstance2D) {
+    //             .type     = MESH_TYPE_RECTANGLE,
+    //             .position = {.x = 0.0, .y = 0, .z = 0.f},
+    //             .scale    = {.x = 1, .y = 0.005},
+    //             .color    = {.r = 0.2, .g = 0.2, .b = 0.2, .a = 1},
+    // }
+    //     )) {
+    //     return;
+    // }
 }
 
 int main (Int32 argc, CString *argv) {
@@ -116,7 +166,7 @@ int main (Int32 argc, CString *argv) {
 
     gplug->clear (gctx, xwin);
     draw_ui (gplug, gctx, xwin);
-
+    gplug->display (gctx, xwin);
     gplug->display (gctx, xwin);
 
     XwEvent e;
@@ -143,7 +193,6 @@ int main (Int32 argc, CString *argv) {
             gplug->clear (gctx, xwin);
             gplug->display (gctx, xwin);
         }
-        gplug->display (gctx, xwin);
     }
 
     gplug->context_destroy (gctx);

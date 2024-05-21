@@ -17,7 +17,7 @@ layout (location = 0) out vec4 out_color;
 void main() {
     gl_Position = vec4 (
         instance_pos.x + (mesh_vtx_pos.x * instance_scale.x), /* x */
-        instance_pos.y + (mesh_vtx_pos.y * instance_scale.y), /* y */
+        - instance_pos.y - (mesh_vtx_pos.y * instance_scale.y), /* y */
         instance_pos.z,                                       /* z */
         1.0f                                                  /* w */
     );

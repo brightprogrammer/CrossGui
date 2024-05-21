@@ -40,10 +40,8 @@
 
 /* local includes */
 #include "GraphicsContext.h"
-#include "MeshManager.h"
 #include "RenderPass.h"
 #include "Renderer.h"
-#include "Vulkan.h"
 
 /**
  * @b Create graphics context for Vulkan plugin.
@@ -68,34 +66,10 @@ XuiGraphicsContext *graphics_context_create (XwWindow *xwin) {
 
     /* create default renderpass */
     GOTO_HANDLER_IF (
-        !render_pass_init_default (&gctx->default_render_pass, &gctx->swapchain),
+        !batch_renderer_init (&gctx->batch_renderer, &gctx->swapchain),
         GCTX_FAILED,
-        "Failed to create default renderpass for new graphics context\n"
+        "Failed to create batch renderer for new graphics context\n"
     );
-
-    /* create uniform buffer to send GPU data */
-    {
-        // GOTO_HANDLER_IF (
-        //     !device_buffer_init (
-        //         &gctx->batch_data,
-        //         VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-        //         sizeof (XuiMeshInstance2D) * 4096,
-        //         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
-        //         vk.device.graphics_queue.family_index
-        //     ) || !gctx->batch_data.size,
-        //     GCTX_FAILED,
-        //     "Failed to create ui data uniform buffer for graphics context\n"
-        // );
-
-        // GOTO_HANDLER_IF (
-        //     !graphics_pipeline_write_to_descriptor_set (
-        //         &gctx->default_render_pass.pipelines.default_graphics,
-        //         &gctx->batch_data
-        //     ),
-        //     GCTX_FAILED,
-        //     "Failed to write UBO info to descriptor set\n"
-        // );
-    }
 
     return gctx;
 
@@ -112,17 +86,8 @@ GCTX_FAILED:
 void graphics_context_destroy (XuiGraphicsContext *gctx) {
     RETURN_IF (!gctx, ERR_INVALID_ARGUMENTS);
 
-    // if (gctx->batch_data.buffer) {
-    //     device_buffer_deinit (&gctx->batch_data);
-    // }
-
-    if (gctx->default_render_pass.render_pass) {
-        render_pass_deinit (&gctx->default_render_pass);
-    }
-
-    if (gctx->swapchain.swapchain) {
-        swapchain_deinit (&gctx->swapchain);
-    }
+    batch_renderer_deinit (&gctx->batch_renderer);
+    swapchain_deinit (&gctx->swapchain);
 
     FREE (gctx);
 }
