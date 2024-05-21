@@ -1,5 +1,5 @@
 ---
-BasedOnStyle: InheritParentConfig
+BasedOnStyle: Google
 AlignConsecutiveBitFields:
   Enabled: true
   AcrossEmptyLines: false
@@ -146,3 +146,4 @@ TypeNames:
   - Addr8
   - UintPtr
 CommentPragmas: .*
+Cpp11BracedListStyle: true

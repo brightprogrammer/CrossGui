@@ -1,6 +1,3 @@
-#include "Anvie/CrossGui/Plugin/Graphics/Api/Mesh2D.h"
-#include "Anvie/CrossGui/Utils/Maths.h"
-
 #include <Anvie/Common.h>
 #include <Anvie/Types.h>
 
@@ -43,7 +40,7 @@ void draw_ui (XuiGraphicsPlugin *gplug, XuiGraphicsContext *gctx, XwWindow *xwin
             &(XuiMeshInstance2D) {
                 .type     = MESH_TYPE_TRIANGLE1,
                 .position = {.x = 0.8, .y = 0.8, .z = 0.f},
-                .scale    = {.x = 0.1, .y = 0.05},
+                .scale    = {.x = 0.1, .y = 0.5},
                 .color    = {.r = 0, .g = 1, .b = 1, .a = 1},
     }
         )) {
@@ -92,34 +89,30 @@ int main (Int32 argc, CString *argv) {
     RETURN_VALUE_IF (!gctx, EXIT_FAILURE, "Failed to create graphics context\n");
 
     XuiMesh2D mesh = {
-        .type = MESH_TYPE_TRIANGLE1,
-        .vertices =
-            (Vec2f[]) {
-                       {.x = 0.f, .y = 1.f},
-                       {.x = 1.f, .y = 0.f},
-                       {.x = -1.f, .y = 0.f},
-                       },
+        .type     = MESH_TYPE_TRIANGLE1,
+        .vertices = (Vec2f[]) {{.x = 0.f, .y = 1.f}, {.x = 1.f, .y = 0.f}, {.x = -1.f, .y = 0.f}},
         .vertex_count = 3,
-        .indices      = (Uint32[]) {0, 1, 2},
+        .indices      = (Uint32[]) {                   0,                    1,                     2},
         .index_count  = 3
     };
 
     RETURN_VALUE_IF (!gplug->mesh_upload_2d (&mesh), EXIT_FAILURE, "Failed to uplaod mesh data\n");
 
     XuiMesh2D mesh1 = {
-        .type         = MESH_TYPE_RECTANGLE,
-        .vertices     = (Vec2f[]
-        ) {{.x = -1.f, .y = 1.f},
-           {.x = 1.f, .y = 1.f},
-           {.x = 1.f, .y = -1.f},
-           {.x = -1.f, .y = -1.f}},
+        .type = MESH_TYPE_RECTANGLE,
+        .vertices =
+            (Vec2f[]) {
+                       {.x = -1.f, .y = 1.f},
+                       {.x = 1.f, .y = 1.f},
+                       {.x = 1.f, .y = -1.f},
+                       {.x = -1.f, .y = -1.f},
+                       },
         .vertex_count = 4,
         .indices      = (Uint32[]) {0, 1, 2, 2, 3, 0},
         .index_count  = 6
     };
 
     RETURN_VALUE_IF (!gplug->mesh_upload_2d (&mesh1), EXIT_FAILURE, "Failed to uplaod mesh data\n");
-
 
     gplug->clear (gctx, xwin);
     draw_ui (gplug, gctx, xwin);

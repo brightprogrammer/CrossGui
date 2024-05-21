@@ -66,6 +66,18 @@ MeshInstanceBatch2D *mesh_instance_batch_init_2d (MeshInstanceBatch2D *batch, Ui
         "Failed to create vector to store batch of mesh instances 2D.\n"
     );
 
+    RETURN_VALUE_IF (
+        !device_buffer_init (
+            &batch->device_data,
+            VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+            sizeof (XuiMeshInstance2D) * 1024,
+            VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+            vk.device.graphics_queue.family_index
+        ),
+        Null,
+        "Failed to create device buffer\n"
+    );
+
     /* set type */
     batch->mesh_type = type;
 
@@ -75,7 +87,14 @@ MeshInstanceBatch2D *mesh_instance_batch_init_2d (MeshInstanceBatch2D *batch, Ui
 MeshInstanceBatch2D *mesh_instance_batch_deinit_2d (MeshInstanceBatch2D *batch) {
     RETURN_VALUE_IF (!batch, Null, ERR_INVALID_ARGUMENTS);
 
-    mesh_instance_2d_vector_destroy (batch->instances.data);
+    if (batch->instances.data) {
+        mesh_instance_2d_vector_destroy (batch->instances.data);
+    }
+
+    if(batch->device_data.buffer) {
+        device_buffer_deinit(&batch->device_data);
+    }
+
     memset (batch, 0, sizeof (MeshInstanceBatch2D));
 
     return batch;
@@ -112,13 +131,36 @@ MeshInstanceBatch2D *mesh_instance_batch_add_instance_2d (
     return batch;
 }
 
-MeshInstanceBatch2D *mesh_instance_batch_2d_reset (MeshInstanceBatch2D *batch) {
+MeshInstanceBatch2D *mesh_instance_batch_reset_2d (MeshInstanceBatch2D *batch) {
     RETURN_VALUE_IF (!batch, Null, ERR_INVALID_ARGUMENTS);
 
     /* for now and probably forever, reset just means this 
      * until unless we enter some crazy memory optimization and we cap memory of
      * vectors after a reset */
     batch->instances.count = 0;
+
+    return batch;
+}
+
+MeshInstanceBatch2D *mesh_instance_batch_upload_to_gpu_2d (MeshInstanceBatch2D *batch) {
+    RETURN_VALUE_IF (!batch, Null, ERR_INVALID_ARGUMENTS);
+
+    /* resize if required */
+    Size batch_size_in_bytes = sizeof (XuiMeshInstance2D) * batch->instances.count;
+    if (batch->device_data.size < batch_size_in_bytes) {
+        RETURN_VALUE_IF (
+            device_buffer_resize (&batch->device_data, batch_size_in_bytes),
+            Null,
+            "Failed to resize batch data device buffer\n"
+        );
+    }
+
+    /* upload data */
+    RETURN_VALUE_IF (
+        !device_buffer_memcpy (&batch->device_data, batch->instances.data, batch_size_in_bytes),
+        Null,
+        "Failed to upload batch data to GPU"
+    );
 
     return batch;
 }
@@ -203,8 +245,11 @@ MeshManager *mesh_manager_upload_mesh_2d (MeshManager *mm, XuiMesh2D *mesh) {
         mm->mesh_data_2d.capacity = newcap;
     }
 
-    MeshData2D new_data =
-        {.type = mesh->type, .vertex_count = mesh->vertex_count, .index_count = mesh->index_count};
+    MeshData2D new_data = {
+        .type         = mesh->type,
+        .vertex_count = mesh->vertex_count,
+        .index_count  = mesh->index_count
+    };
 
     /* setup new mesh data */
     {
@@ -328,7 +373,17 @@ MeshManager *mesh_manager_reset_batches_2d (MeshManager *mm) {
     RETURN_VALUE_IF (!mm, Null, ERR_INVALID_ARGUMENTS);
 
     for (Size s = 0; s < mm->batches_2d.count; s++) {
-        mesh_instance_batch_2d_reset (mm->batches_2d.data + s);
+        mesh_instance_batch_reset_2d (mm->batches_2d.data + s);
+    }
+
+    return mm;
+}
+
+MeshManager *mesh_manager_upload_batches_to_gpu_2d (MeshManager *mm) {
+    RETURN_VALUE_IF (!mm, Null, ERR_INVALID_ARGUMENTS);
+
+    for (Size s = 0; s < mm->batches_2d.count; s++) {
+        mesh_instance_batch_upload_to_gpu_2d (mm->batches_2d.data + s);
     }
 
     return mm;

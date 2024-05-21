@@ -41,12 +41,6 @@ typedef struct XuiGraphicsContext {
     VkSurfaceKHR surface;
     Swapchain    swapchain;
     RenderPass   default_render_pass;
-
-    /**
-     * @b Device buffer storing mesh instance data to be passed to GPU
-     * just before a draw call.
-     * */
-    DeviceBuffer batch_data;
 } XuiGraphicsContext;
 
 XuiGraphicsContext *graphics_context_create (XwWindow *xwin);

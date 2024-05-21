@@ -72,95 +72,95 @@ GraphicsPipeline *graphics_pipeline_init_default (
     VkDevice       device      = vk.device.logical;
     VkShaderModule vert_shader = VK_NULL_HANDLE, frag_shader = VK_NULL_HANDLE;
 
-    /* create descriptor pool */
-    {
-        VkDescriptorPoolSize pool_sizes[] = {
-            {.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, .descriptorCount = 1}
-        };
-
-        VkDescriptorPoolCreateInfo descriptor_pool_create_info = {
-            .sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-            .pNext         = Null,
-            .flags         = 0,
-            .maxSets       = 1,
-            .poolSizeCount = ARRAY_SIZE (pool_sizes),
-            .pPoolSizes    = pool_sizes
-        };
-
-        VkResult res = vkCreateDescriptorPool (
-            device,
-            &descriptor_pool_create_info,
-            Null,
-            &pipeline->descriptor_pool
-        );
-        GOTO_HANDLER_IF (
-            res != VK_SUCCESS,
-            INIT_FAILED,
-            "Failed to create descriptor set. RET = %d\n",
-            res
-        );
-    }
-
-    /* describe descriptor set layout */
-    {
-        VkDescriptorSetLayoutBinding bindings[] = {
-            {.binding            = 0,
-             .descriptorType     = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-             .descriptorCount    = 1,
-             .stageFlags         = VK_SHADER_STAGE_VERTEX_BIT,
-             .pImmutableSamplers = Null}
-        };
-
-        VkDescriptorSetLayoutCreateInfo set_layout_create_info = {
-            .sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-            .pNext        = Null,
-            .flags        = 0,
-            .bindingCount = ARRAY_SIZE (bindings),
-            .pBindings    = bindings
-        };
-
-        VkResult res = vkCreateDescriptorSetLayout (
-            device,
-            &set_layout_create_info,
-            Null,
-            &pipeline->descriptor_set_layout
-        );
-        GOTO_HANDLER_IF (
-            res != VK_SUCCESS,
-            INIT_FAILED,
-            "Failed to create descriptor set layout. RET = %d\n",
-            res
-        );
-    }
-
-    /* allocate one single descriptor set */
-    {
-        VkDescriptorSetAllocateInfo set_allocate_info = {
-            .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-            .pNext              = Null,
-            .descriptorPool     = pipeline->descriptor_pool,
-            .descriptorSetCount = 1,
-            .pSetLayouts        = (VkDescriptorSetLayout[]) {pipeline->descriptor_set_layout}
-        };
-
-        VkResult res =
-            vkAllocateDescriptorSets (device, &set_allocate_info, &pipeline->descriptor_set);
-        GOTO_HANDLER_IF (
-            res != VK_SUCCESS,
-            INIT_FAILED,
-            "Failed to create descriptor set layout. RET = %d\n",
-            res
-        );
-    }
+    // /* create descriptor pool */
+    // {
+    //     VkDescriptorPoolSize pool_sizes[] = {
+    //         {.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, .descriptorCount = 1}
+    //     };
+    //
+    //     VkDescriptorPoolCreateInfo descriptor_pool_create_info = {
+    //         .sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+    //         .pNext         = Null,
+    //         .flags         = 0,
+    //         .maxSets       = 1,
+    //         .poolSizeCount = ARRAY_SIZE (pool_sizes),
+    //         .pPoolSizes    = pool_sizes
+    //     };
+    //
+    //     VkResult res = vkCreateDescriptorPool (
+    //         device,
+    //         &descriptor_pool_create_info,
+    //         Null,
+    //         &pipeline->descriptor_pool
+    //     );
+    //     GOTO_HANDLER_IF (
+    //         res != VK_SUCCESS,
+    //         INIT_FAILED,
+    //         "Failed to create descriptor set. RET = %d\n",
+    //         res
+    //     );
+    // }
+    //
+    // /* describe descriptor set layout */
+    // {
+    //     VkDescriptorSetLayoutBinding bindings[] = {
+    //         {.binding            = 0,
+    //          .descriptorType     = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+    //          .descriptorCount    = 1,
+    //          .stageFlags         = VK_SHADER_STAGE_VERTEX_BIT,
+    //          .pImmutableSamplers = Null}
+    //     };
+    //
+    //     VkDescriptorSetLayoutCreateInfo set_layout_create_info = {
+    //         .sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+    //         .pNext        = Null,
+    //         .flags        = 0,
+    //         .bindingCount = ARRAY_SIZE (bindings),
+    //         .pBindings    = bindings
+    //     };
+    //
+    //     VkResult res = vkCreateDescriptorSetLayout (
+    //         device,
+    //         &set_layout_create_info,
+    //         Null,
+    //         &pipeline->descriptor_set_layout
+    //     );
+    //     GOTO_HANDLER_IF (
+    //         res != VK_SUCCESS,
+    //         INIT_FAILED,
+    //         "Failed to create descriptor set layout. RET = %d\n",
+    //         res
+    //     );
+    // }
+    //
+    // /* allocate one single descriptor set */
+    // {
+    //     VkDescriptorSetAllocateInfo set_allocate_info = {
+    //         .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+    //         .pNext              = Null,
+    //         .descriptorPool     = pipeline->descriptor_pool,
+    //         .descriptorSetCount = 1,
+    //         .pSetLayouts        = (VkDescriptorSetLayout[]) {pipeline->descriptor_set_layout}
+    //     };
+    //
+    //     VkResult res =
+    //         vkAllocateDescriptorSets (device, &set_allocate_info, &pipeline->descriptor_set);
+    //     GOTO_HANDLER_IF (
+    //         res != VK_SUCCESS,
+    //         INIT_FAILED,
+    //         "Failed to create descriptor set layout. RET = %d\n",
+    //         res
+    //     );
+    // }
 
     /* create a pipeline layout including provided shader resource binding */
     {
         VkPipelineLayoutCreateInfo pipeline_layout_create_info = {
-            .sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-            .pNext                  = Null,
-            .flags                  = 0,
-            .setLayoutCount         = 1,
-            .pSetLayouts            = (VkDescriptorSetLayout[]) {pipeline->descriptor_set_layout},
+            .sType          = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+            .pNext          = Null,
+            .flags          = 0,
+            .setLayoutCount = 0,
+            // .pSetLayouts            = (VkDescriptorSetLayout[]) {pipeline->descriptor_set_layout},
             .pushConstantRangeCount = 0,
             .pPushConstantRanges    = Null
         };
@@ -436,16 +436,16 @@ GraphicsPipeline *graphics_pipeline_deinit (GraphicsPipeline *pipeline) {
         pipeline->pipeline_layout = VK_NULL_HANDLE;
     }
 
-    if (pipeline->descriptor_pool) {
-        vkDestroyDescriptorPool (device, pipeline->descriptor_pool, Null);
-        pipeline->descriptor_pool = VK_NULL_HANDLE;
-        pipeline->descriptor_set  = VK_NULL_HANDLE;
-    }
-
-    if (pipeline->descriptor_set_layout) {
-        vkDestroyDescriptorSetLayout (device, pipeline->descriptor_set_layout, Null);
-        pipeline->descriptor_set_layout = VK_NULL_HANDLE;
-    }
+    // if (pipeline->descriptor_pool) {
+    //     vkDestroyDescriptorPool (device, pipeline->descriptor_pool, Null);
+    //     pipeline->descriptor_pool = VK_NULL_HANDLE;
+    //     pipeline->descriptor_set  = VK_NULL_HANDLE;
+    // }
+    //
+    // if (pipeline->descriptor_set_layout) {
+    //     vkDestroyDescriptorSetLayout (device, pipeline->descriptor_set_layout, Null);
+    //     pipeline->descriptor_set_layout = VK_NULL_HANDLE;
+    // }
 
     return pipeline;
 }
@@ -469,8 +469,11 @@ GraphicsPipeline *graphics_pipeline_write_to_descriptor_set (
 
     /* write this buffer info to descriptor set */
     {
-        VkDescriptorBufferInfo buffer_info =
-            {.buffer = uniform_buffer->buffer, .range = uniform_buffer->size, .offset = 0};
+        VkDescriptorBufferInfo buffer_info = {
+            .buffer = uniform_buffer->buffer,
+            .range  = uniform_buffer->size,
+            .offset = 0
+        };
 
         VkWriteDescriptorSet write_descriptor_set = {
             .sType            = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,

@@ -70,15 +70,18 @@ typedef struct MeshInstanceBatch2D {
         Size               capacity;
         XuiMeshInstance2D *data;
     } instances;
+
+    DeviceBuffer device_data;
 } MeshInstanceBatch2D;
 
-MeshInstanceBatch2D *mesh_instance_batch_init_2d (MeshInstanceBatch2D *mib, Uint32 type);
-MeshInstanceBatch2D *mesh_instance_batch_deinit_2d (MeshInstanceBatch2D *mib);
+MeshInstanceBatch2D *mesh_instance_batch_init_2d (MeshInstanceBatch2D *batch, Uint32 type);
+MeshInstanceBatch2D *mesh_instance_batch_deinit_2d (MeshInstanceBatch2D *batch);
 MeshInstanceBatch2D *mesh_instance_batch_add_instance_2d (
-    MeshInstanceBatch2D *mib,
+    MeshInstanceBatch2D *batch,
     XuiMeshInstance2D   *mesh_instance
 );
-MeshInstanceBatch2D *mesh_instance_batch_2d_reset (MeshInstanceBatch2D *mib);
+MeshInstanceBatch2D *mesh_instance_batch_reset_2d (MeshInstanceBatch2D *batch);
+MeshInstanceBatch2D *mesh_instance_batch_upload_to_gpu_2d (MeshInstanceBatch2D *batch);
 
 typedef struct MeshManager {
     /**
@@ -112,5 +115,6 @@ MeshData2D          *mesh_manager_get_mesh_data_by_type_2d (MeshManager *mm, Uin
 MeshInstanceBatch2D *mesh_manager_get_mesh_instance_batch_by_type_2d (MeshManager *mm, Uint32 type);
 MeshManager *mesh_manager_add_mesh_instance_2d (MeshManager *mm, XuiMeshInstance2D *mesh_instance);
 MeshManager *mesh_manager_reset_batches_2d (MeshManager *mm);
+MeshManager *mesh_manager_upload_batches_to_gpu_2d(MeshManager* mm);
 
 #endif // ANVIE_SOURCE_CROSSGUI_PLUGIN_GRAPHICS_VULKAN_MESH_MANAGER_H

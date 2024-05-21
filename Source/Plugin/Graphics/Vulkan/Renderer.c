@@ -36,7 +36,6 @@
 #include <Anvie/CrossGui/Plugin/Graphics/Api/Mesh2D.h>
 
 /* local includes */
-#include "Anvie/CrossGui/Plugin/Graphics/Api/Common.h"
 #include "Device.h"
 #include "GraphicsContext.h"
 #include "MeshManager.h"
@@ -44,8 +43,6 @@
 #include "Renderer.h"
 #include "Swapchain.h"
 #include "Vulkan.h"
-
-#include <vulkan/vulkan_core.h>
 
 typedef struct BeginEndInfo {
     FrameData    *frame_data;
@@ -158,6 +155,7 @@ XuiRenderStatus gfx_display (XuiGraphicsContext *gctx, XwWindow *win) {
 
     vkCmdBindPipeline (cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, default_pipeline->pipeline);
 
+    mesh_manager_upload_batches_to_gpu_2d (&vk.mesh_manager);
 
     /* issue a draw call for each batch just once */
     for (Size s = 0; s < vk.mesh_manager.batches_2d.count; s++) {
@@ -169,32 +167,17 @@ XuiRenderStatus gfx_display (XuiGraphicsContext *gctx, XwWindow *win) {
             continue;
         }
 
-        /* resize if required */
-        Size batch_size_in_bytes = sizeof (XuiMeshInstance2D) * batch->instances.count;
-        if (gctx->batch_data.size < batch_size_in_bytes) {
-            RETURN_VALUE_IF (
-                !device_buffer_resize (&gctx->batch_data, batch_size_in_bytes),
-                XUI_RENDER_STATUS_ERR,
-                "Failed to resize UBO to send batch data\n"
-            );
-        }
-
-        /* send batch data as vertex data but per instance */
-        device_buffer_memcpy (&gctx->batch_data, batch->instances.data, batch_size_in_bytes);
-
         /* get mesh data */
         MeshData2D *mesh =
             mesh_manager_get_mesh_data_by_type_2d (&vk.mesh_manager, batch->mesh_type);
 
-        PRINT_ERR ("Mesh has indices count = %zu\n", mesh->vertex_count);
-
         /* bind shape data */
         vkCmdBindVertexBuffers (
             cmd,
-            0,                                                           /* first binding */
-            2,                                                           /* binding count */
-            (VkBuffer[]) {mesh->vertex.buffer, gctx->batch_data.buffer}, /* buffers */
-            (VkDeviceSize[]) {0, 0}                                      /* offsets */
+            0,                                                             /* first binding */
+            2,                                                             /* binding count */
+            (VkBuffer[]) {mesh->vertex.buffer, batch->device_data.buffer}, /* buffers */
+            (VkDeviceSize[]) {0, 0}                                        /* offsets */
         );
 
         vkCmdBindIndexBuffer (cmd, mesh->index.buffer, 0, VK_INDEX_TYPE_UINT32);
@@ -202,7 +185,6 @@ XuiRenderStatus gfx_display (XuiGraphicsContext *gctx, XwWindow *win) {
         /* draw */
         vkCmdDrawIndexed (cmd, mesh->index_count, batch->instances.count, 0, 0, 0);
     }
-
 
     /* end render pass */
     vkCmdEndRenderPass (cmd);

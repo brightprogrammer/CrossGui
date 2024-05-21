@@ -75,17 +75,17 @@ XuiGraphicsContext *graphics_context_create (XwWindow *xwin) {
 
     /* create uniform buffer to send GPU data */
     {
-        GOTO_HANDLER_IF (
-            !device_buffer_init (
-                &gctx->batch_data,
-                VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-                sizeof (XuiMeshInstance2D) * 4096,
-                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
-                vk.device.graphics_queue.family_index
-            ) || !gctx->batch_data.size,
-            GCTX_FAILED,
-            "Failed to create ui data uniform buffer for graphics context\n"
-        );
+        // GOTO_HANDLER_IF (
+        //     !device_buffer_init (
+        //         &gctx->batch_data,
+        //         VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+        //         sizeof (XuiMeshInstance2D) * 4096,
+        //         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+        //         vk.device.graphics_queue.family_index
+        //     ) || !gctx->batch_data.size,
+        //     GCTX_FAILED,
+        //     "Failed to create ui data uniform buffer for graphics context\n"
+        // );
 
         // GOTO_HANDLER_IF (
         //     !graphics_pipeline_write_to_descriptor_set (
@@ -112,9 +112,9 @@ GCTX_FAILED:
 void graphics_context_destroy (XuiGraphicsContext *gctx) {
     RETURN_IF (!gctx, ERR_INVALID_ARGUMENTS);
 
-    if (gctx->batch_data.buffer) {
-        device_buffer_deinit (&gctx->batch_data);
-    }
+    // if (gctx->batch_data.buffer) {
+    //     device_buffer_deinit (&gctx->batch_data);
+    // }
 
     if (gctx->default_render_pass.render_pass) {
         render_pass_deinit (&gctx->default_render_pass);

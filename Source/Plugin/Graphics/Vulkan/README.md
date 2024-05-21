@@ -1,5 +1,47 @@
 # CrossGui Vulkan Graphics Plugin
 
+## [[**Tue, 21st May 2024**]]
+
+Wow, one month of vacation almost gone! The commits near this date achieve batch
+rendering support. While writing this some refactorings still remain, like moving
+the batch data to a new class named `BatchRenderer`, and move the drawing functions
+there as well.
+
+Here are some very important lessons learned :
+
+- I initially thought that I'd send vertex data and instance as UBO and access those
+  using `gl_VertexID` and `gl_InstanceID` invariants in GLSL. Turns out the actual
+  (and probably the best solution for the moment) is way better than this. I just
+  needed to send two vertex buffers. One will change per instance and one per vertex.
+  This also removes the alignment requirements required by uniform buffers and saves a lot
+  of memory because alignment almost doubled the size almost always. (44->80,128)
+- Maybe I was overcomplicating things. KISS (Keep It Simple Stupid)
+- For creating shapes, I initially was taking one vertex at a time, now I just take the
+  complete mesh from the user and force them to use index buffers. They save memory a lot.
+- Synchronization is very vert important in Vulkan. The bug mentioned in [this](https://github.com/brightprogrammer/CrossGui/commit/65c85af99b8302c1945a4f8c12d7359e95977afd)
+  commit is due to this sync problem. To be more precise, the actual bug is [here](https://github.com/brightprogrammer/CrossGui/blob/65c85af99b8302c1945a4f8c12d7359e95977afd/Source/Plugin/Graphics/Vulkan/Renderer.c#L183)
+  because the memory access is not synchronized. I update the same vertex buffer many
+  times in the same draw call. Due to this, I was updating the buffer even when it was
+  being in use currently. To fix this, I just added separate instance buffers for each batch,
+  and now we have smooth rendering.
+
+After some more refactoring this WIP will be closed and we'll move on to dynamic device memory
+management or some other interesting thing.
+
+One thing from our refactoring goals cannot be completed (atleast with my current knowledge).
+We cannot render everything in a single draw call now. The draw calls are broken into multiple
+batches where the number of batch depends on the number of shapes added to the mesh manager.
+
+The shapes will be global and will be accessible by all instances of `BatchRenderer`, but instance
+data is unique for each `GraphicsContext` and must be separate for each one. Therefore the concept of
+a separate `BatchRenderer` is required.
+
+As for staging and device local buffers, we can do that only for shapes because they don't change
+a lot. For now, the design does not allow the user-code to modify or delete any shape that's uploaded
+to the GPU. This means the user-code must be really careful with what they upload. Or they can even be
+careless, if they want to upload 1000s of shapes, which will eventually happen when we enter
+Text rendering (probably).
+
 ## [[**Wed, 15th May 2024**]]
 
 Been thinking of refactoring the plugin to add one draw call rendering, but had a
